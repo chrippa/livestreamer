@@ -10,6 +10,7 @@ parser.add_argument("url", help="URL to stream", nargs="?")
 parser.add_argument("stream", help="stream to play", nargs="?")
 parser.add_argument("-p", "--player", metavar="player", help="commandline for player", default="vlc")
 parser.add_argument("-o", "--output", metavar="filename", help="write stream to file instead of playing it")
+parser.add_argument("-O", "--stdout", action="store_true", help="write stream to STDOUT instead of playing it")
 parser.add_argument("-l", "--plugins", action="store_true", help="print installed plugins")
 
 RCFILE = os.path.expanduser("~/.livestreamerrc")
@@ -88,6 +89,8 @@ def handle_url(args):
                     out = open(args.output, "wb")
                 except IOError as err:
                     exit(("Failed to open file {0} - ").format(args.output, err))
+            elif args.stdout:
+                out = sys.stdout
             else:
                 cmd = args.player + " -"
                 player = pbs.sh("-c", cmd, _bg=True, _out=sys.stdout, _err=sys.stderr)
