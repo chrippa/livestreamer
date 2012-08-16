@@ -1,4 +1,8 @@
 '''
+This is derived from https://github.com/sjp/GOMstreamer
+
+and carries the following licence
+
 Copyright 2010 Simon Potter, Tomáš Heřman
 Copyright 2011 Simon Potter
 Copyright 2011 Fj (fj.mail@gmail.com)
