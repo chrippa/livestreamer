@@ -1,7 +1,9 @@
 options = {
     "rtmpdump": None,
     "errorlog": False,
-    "jtvcookie": None
+    "jtvcookie": None,
+    "username": None,
+    "password": None
 }
 
 def set(key, value):

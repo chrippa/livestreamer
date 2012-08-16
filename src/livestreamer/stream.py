@@ -75,11 +75,16 @@ class RTMPStream(StreamProcess):
         return False
 
 class HTTPStream(Stream):
-    def __init__(self, url):
+    def __init__(self, url, userAgent = None):
         self.url = url
+        self.userAgent = userAgent
 
     def open(self):
-        return urlopen(self.url)
+		try:
+			return urlopen(self.url, userAgent=self.userAgent)
+		except:
+			raise StreamError("Http connection error")
+			
 
 
 __all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream"]

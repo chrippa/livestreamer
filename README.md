@@ -5,6 +5,7 @@ streaming services in a custom video player.
 
 Currently supported sites are:
 
+* GOMTV.net
 * Justin.tv/Twitch.tv
 * Own3d.tv
 * SVTPlay
@@ -38,8 +39,8 @@ Installing (Windows)
 
     python setup.py install
 
-Note: If you want to use VLC be aware there is currently a bug in version 2.0.1/2.0.2
-that prevents stdin reading from working. The bug has been fixed in version 2.0.3.
+Note: If you want to use VLC be aware there is currently a bug in version 2.0.1
+that prevents stdin reading from working. Use 2.0.0 or a nightly build for now.
 
 
 Using
@@ -54,6 +55,8 @@ A example file:
 
     player=mplayer
     jtv-cookie=_jtv3_session_id=arandomhash
+    username=username
+    password=password
 
 
 Using livestreamer as a library

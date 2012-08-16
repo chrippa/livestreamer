@@ -43,6 +43,8 @@ pluginopt.add_argument("-c", "--cmdline", action="store_true", help="Print comma
 pluginopt.add_argument("-e", "--errorlog", action="store_true", help="Log possible errors from internal command-line to a temporary file, use when debugging")
 pluginopt.add_argument("-r", "--rtmpdump", metavar="path", help="Specify location of rtmpdump")
 pluginopt.add_argument("-j", "--jtv-cookie", metavar="cookie", help="Specify JustinTV cookie to allow access to subscription channels")
+pluginopt.add_argument("-U", "--username", metavar="username", help="Authentication username used for GomTV plugin.")
+pluginopt.add_argument("-P", "--password", metavar="password", help="Authentication password used for GomTV plugin.")
 
 RCFILE = os.path.expanduser("~/.livestreamerrc")
 
@@ -233,6 +235,8 @@ def main():
     livestreamer.options.set("errorlog", args.errorlog)
     livestreamer.options.set("rtmpdump", args.rtmpdump)
     livestreamer.options.set("jtvcookie", args.jtv_cookie)
+    livestreamer.options.set("username", args.username)
+    livestreamer.options.set("password", args.password)
     logger.set_level(args.loglevel)
 
     if args.url:
