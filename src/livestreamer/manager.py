@@ -322,5 +322,4 @@ class Manager():
 	def __init__(self, args):
 		interpreter = ManagerCli(args)		
 		interpreter.prompt = "livestreamer$ "
-		interpreter.onecmd("stream http://www.twitch.tv/leveluplive best")
 		interpreter.cmdloop()
