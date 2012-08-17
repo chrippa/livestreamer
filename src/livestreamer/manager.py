@@ -308,7 +308,13 @@ class ManagerCli(cmd.Cmd):
 			else:
 				self.args.port = self.nextPort(self.args.min_port, self.args.max_port)
 
-		stream = {'queue': None, 'process': None, 'info': self.args.url + " " + self.args.stream, 'port': self.args.port}
+		stream = {'queue': None, 'process': None, 'info': None, 'port': None}
+
+		if self.args.stream:
+			stream['info'] = self.args.url + " " + self.args.stream
+		else:
+			stream['info'] = self.args.url
+
 		stream['queue'] = Queue()
 		stream['process'] = Process(target=handle_url, args=(self.args, stream['queue']))
 		stream['process'].start()
