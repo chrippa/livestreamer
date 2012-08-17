@@ -326,6 +326,9 @@ class ManagerCli(cmd.Cmd):
 
 class Manager():
 	def __init__(self, args):
+		if is_win32:
+			print "The manager is unavailable on windows due to a bug with multiprocessing"
+			return 
 		interpreter = ManagerCli(args)		
 		interpreter.prompt = "livestreamer$ "
 		interpreter.cmdloop()
