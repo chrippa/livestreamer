@@ -72,3 +72,13 @@ def verifyjson(json, key):
 	return json[key]
 
 __all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", "verifyjson"]
+
+def port(string):
+	value = int(string)
+	if value <= 1024:
+		msg = "%r must be grater than 1024" % string
+		raise argparse.ArgumentTypeError(msg)
+	if value > 65535:
+		msg = "%r must be less than 65535" % string
+		raise argparse.ArgumentTypeError(msg)
+	return value
