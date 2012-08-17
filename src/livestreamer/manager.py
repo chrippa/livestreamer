@@ -22,7 +22,7 @@ def write_stream(fd, out, progress, queue):
 			pass
 		try:
 			data = fd.read(8192)
-		except IOError:
+		except:
 			logger.error("Error when reading from stream")
 			break
 
@@ -115,16 +115,8 @@ def output_stream(stream, args, queue):
 	logger.debug("Writing stream to output")
 	out.write(prebuffer)
 
-	writeQueue = Queue()
-	process = Process(target=write_stream, args=(fd, out, progress, writeQueue))
-	process.start()
-
 	queue.put("started")
-	while queue.get() != "kill":
-		pass
-
-	writeQueue.put("kill")
-	process.join()
+	write_stream(fd, out, progress, queue)
 
 	if player:
 		try:
@@ -326,9 +318,7 @@ class ManagerCli(cmd.Cmd):
 
 class Manager():
 	def __init__(self, args):
-		if is_win32:
-			print "The manager is unavailable on windows due to a bug with multiprocessing"
-			return 
 		interpreter = ManagerCli(args)		
 		interpreter.prompt = "livestreamer$ "
+		interpreter.onecmd("stream http://www.twitch.tv/esltv_sc2 best")
 		interpreter.cmdloop()

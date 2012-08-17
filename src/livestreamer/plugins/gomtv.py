@@ -21,15 +21,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 '''
-from livestreamer.compat import str, bytes
+from livestreamer.compat import str, bytes, urlencode
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError, register_plugin
 from livestreamer.stream import HTTPStream
-from livestreamer.utils import urlget
+from livestreamer.utils import urlget, urllib
 from livestreamer import options
 
-from urlparse import urljoin
 import xml.dom.minidom, re
-import urllib, urllib2, cookielib
+import cookielib
 
 class GomTV(Plugin):
 	@classmethod
@@ -38,9 +37,9 @@ class GomTV(Plugin):
 
 
 	def _get_streams(self):
-		# Setting urllib2 up so that we can store cookies
+		# Setting urllib up so that we can store cookies
 		cookiejar = cookielib.LWPCookieJar()
-		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookiejar))
+		self.opener = urllib.build_opener(urllib.HTTPCookieProcessor(cookiejar))
 
 		self.authenticate(options.get("username"), options.get("password"))
 
@@ -86,10 +85,10 @@ class GomTV(Plugin):
 				 'mb_username': username,
 				 'mb_password': password
 				 }
-		data = urllib.urlencode(values)
+		data = urlencode(values)
 		# Now expects to log in only via the website. Thanks chrippa.
 		headers = {'Referer': 'http://www.gomtv.net/'}
-		request = urllib2.Request('https://ssl.gomtv.net/userinfo/loginProcess.gom', data, headers)
+		request = urllib.Request('https://ssl.gomtv.net/userinfo/loginProcess.gom', data, headers)
 		urlget(request, opener=self.opener)
 
 		if 'Please need login' in urlget('http://www.gomtv.net/forum/list.gom?m=my', opener=self.opener):

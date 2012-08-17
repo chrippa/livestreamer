@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-from sys import version_info
+from sys import version_info, platform, prefix
 
 version = "1.1.0"
 deps = ["pbs"]
@@ -32,3 +32,29 @@ setup(name="livestreamer",
                    "Topic :: Multimedia :: Sound/Audio",
                    "Topic :: Utilities"]
 )
+
+# Fix the entry point so that we don't end up in an infinite loop because of multiprocess
+if platform == 'win32':
+	f = open(prefix + "\\Scripts\\livestreamer-script.py", "r+")
+	
+	contents = f.readlines()
+
+	push = False
+	output = ""
+	for index, line in enumerate(contents):
+		if push:
+			line = " " + line;
+
+		if "sys.exit(" in line:
+			line = "if __name__ == '__main__':\n " + line;
+			push = True
+	
+		if line == " )\n":
+			push = False
+
+		output = output + line
+
+	f.seek(0)
+	f.write(output)
+	f.close()
+
