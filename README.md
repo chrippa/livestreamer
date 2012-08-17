@@ -58,7 +58,7 @@ The Manager and XSplit
 ----------------------
 Set your player argument though the config file or command line to:
 
-	vlc -I dummy --sout=#rtp{sdp=rtsp://:{PORT}/} --no-sout-rtp-sap --no-sout-standard-sap --ttl=1 --sout-keep
+	vlc --sout=#rtp{sdp=rtsp://:{PORT}/} --no-sout-rtp-sap --no-sout-standard-sap --ttl=1 --sout-keep
 
 	You can adjust this as you wish only if you know what you are doing.
 
