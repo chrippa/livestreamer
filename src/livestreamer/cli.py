@@ -1,10 +1,11 @@
-import sys, os, argparse, subprocess
+import sys, os, argparse
 import livestreamer
 from .manager import Manager
 from .utils import port
 
 from livestreamer.compat import input, stdout, is_win32
 from livestreamer.logger import Logger
+from livestreamer.stream import StreamHandler
 
 exampleusage = """
 example usage:
@@ -63,164 +64,6 @@ def set_msg_output(output):
 	msg_output = output
 	logger.set_output(output)
 
-def write_stream(fd, out, progress):
-	written = 0
-
-	while True:
-		try:
-			data = fd.read(8192)
-		except IOError:
-			logger.error("Error when reading from stream")
-			break
-
-		if len(data) == 0:
-			break
-
-		try:
-			out.write(data)
-		except IOError:
-			logger.error("Error when writing to output")
-			break
-
-		written += len(data)
-
-		if progress:
-			sys.stderr.write(("\rWritten {0} bytes").format(written))
-
-	if progress and written > 0:
-		sys.stderr.write("\n")
-
-	logger.info("Closing stream")
-	fd.close()
-
-	if out != stdout:
-		out.close()
-
-def check_output(output, force):
-	if os.path.isfile(output) and not force:
-		sys.stderr.write(("File {0} already exists! Overwrite it? [y/N] ").format(output))
-
-		try:
-			answer = input()
-		except:
-			sys.exit()
-
-		answer = answer.strip().lower()
-
-		if answer != "y":
-			sys.exit()
-
-	try:
-		out = open(output, "wb")
-	except IOError as err:
-		exit(("Failed to open file {0} - ").format(output, err))
-
-	return out
-
-def output_stream(stream, args):
-	progress = False
-	out = None
-	player = None
-
-	logger.info("Opening stream {0}", args.stream)
-
-	try:
-		fd = stream.open()
-	except livestreamer.StreamError as err:
-		exit(("Could not open stream - {0}").format(err))
-
-	logger.debug("Pre-buffering 8192 bytes")
-	try:
-		prebuffer = fd.read(8192)
-	except IOError:
-		exit("Failed to read data from stream")
-
-	logger.debug("Checking output")
-
-	if args.output:
-		if args.output == "-":
-			out = stdout
-		else:
-			out = check_output(args.output, args.force)
-			progress = True
-	elif args.stdout:
-		out = stdout
-	else:
-		cmd = args.player + " -"
-
-		if args.quiet_player:
-			pout = open(os.devnull, "w")
-			perr = open(os.devnull, "w")
-		else:
-			pout = sys.stderr
-			perr = sys.stdout
-
-		logger.info("Starting player: {0}", args.player)
-		player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
-								  stdin=subprocess.PIPE)
-		out = player.stdin
-
-	if not out:
-		exit("Failed to open a valid stream output")
-
-	if is_win32:
-		import msvcrt
-		msvcrt.setmode(out.fileno(), os.O_BINARY)
-
-	logger.debug("Writing stream to output")
-	out.write(prebuffer)
-
-	try:
-		write_stream(fd, out, progress)
-	except KeyboardInterrupt:
-		pass
-
-	if player:
-		try:
-			player.kill()
-		except:
-			pass
-
-def handle_url(args):
-	try:
-		channel = livestreamer.resolve_url(args.url)
-	except livestreamer.NoPluginError:
-		exit(("No plugin can handle URL: {0}").format(args.url))
-
-	logger.info("Found matching plugin {0} for URL {1}", channel.module, args.url)
-
-	try:
-		streams = channel.get_streams()
-	except livestreamer.StreamError as err:
-		exit(str(err))
-	except livestreamer.PluginError as err:
-		exit(str(err))
-
-	if len(streams) == 0:
-		exit(("No streams found on this URL: {0}").format(args.url))
-
-	keys = list(streams.keys())
-	keys.sort()
-	validstreams = (", ").join(keys)
-
-	if args.stream:
-		if args.stream in streams:
-			stream = streams[args.stream]
-
-			if args.cmdline:
-				if isinstance(stream, livestreamer.stream.StreamProcess):
-					msg(stream.cmdline())
-				else:
-					exit("Stream does not use a command-line")
-			else:
-				output_stream(stream, args)
-		else:
-			msg(("Invalid stream quality: {0}").format(args.stream))
-			msg(("Valid streams: {0}").format(validstreams))
-	else:
-		msg(("Found streams: {0}").format(validstreams))
-
-
 def print_plugins():
 	pluginlist = list(livestreamer.get_plugins().keys())
 	msg(("Installed plugins: {0}").format(", ".join(pluginlist)))
@@ -241,12 +84,15 @@ def main():
 	livestreamer.options.set("jtvcookie", args.jtv_cookie)
 	livestreamer.options.set("username", args.username)
 	livestreamer.options.set("password", args.password)
+
 	logger.set_level(args.loglevel)
+	args.logger = logger
+	args.port = None
 	
 	if args.manager:
 		Manager(args)
 	elif args.url:
-		handle_url(args)
+		StreamHandler(args)
 	elif args.plugins:
 		print_plugins()
 	else:

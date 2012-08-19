@@ -1,6 +1,8 @@
 from . import options
 from .utils import urlopen
 from .compat import str, is_win32
+import livestreamer
+import subprocess, sys
 
 import os
 import pbs
@@ -84,7 +86,214 @@ class HTTPStream(Stream):
 			return urlopen(self.url, userAgent=self.userAgent)
 		except:
 			raise StreamError("Http connection error")
-			
 
 
-__all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream"]
+class StreamHandler():
+	def __init__(self, args, queue=None):
+		try:
+			self.logger = args.logger
+			self.queue = queue
+
+			try:
+				channel = livestreamer.resolve_url(args.url)
+			except livestreamer.NoPluginError:
+				self.logger.error("No plugin can handle URL: {0}".format(args.url))
+				self.queuePut("failed")
+				return None
+
+			self.logger.info("Found matching plugin {0} for URL {1}".format(channel.module, args.url))
+
+			try:
+				streams = channel.get_streams()
+			except livestreamer.StreamError as err:
+				self.logger.error(str(err))
+				self.queuePut("failed")
+				return None
+			except livestreamer.PluginError as err:
+				self.logger.error(str(err))
+				self.queuePut("failed")
+				return None
+
+			if len(streams) == 0:
+				self.logger.error(("No streams found on this URL: {0}").format(args.url))
+				self.queuePut("failed")
+				return None
+
+			keys = list(streams.keys())
+			keys.sort()	
+			validstreams = (", ").join(keys)
+
+			if args.stream:
+				if args.stream in streams:
+					stream = streams[args.stream]
+
+					if args.cmdline:
+						if isinstance(stream, livestreamer.stream.StreamProcess):
+							msg(stream.cmdline())
+						else:
+							exit("Stream does not use a command-line")
+					else:
+						self.output_stream(stream, args, queue)
+				else:
+					self.logger.error(("Invalid stream quality: {0}").format(args.stream))
+					self.logger.error(("Valid streams: {0}").format(validstreams))
+					self.queuePut("failed")
+					return None
+			else:
+				self.logger.error(("Found streams: {0}").format(validstreams))
+				if queue is not None:
+					self.queuePut("failed")
+				return None
+		except KeyboardInterrupt:
+			pass
+		
+	def output_stream(self, stream, args, queue=None):
+		progress = False
+		out = None
+		player = None
+
+		self.logger.info("Opening stream {0}", args.stream)
+
+		try:
+			fd = stream.open()
+		except livestreamer.StreamError as err:
+			self.logger.error("Could not open stream - {0}").format(err)
+			self.queuePut("failed")
+			return False
+
+		self.logger.debug("Pre-buffering 8192 bytes")
+		try:
+			prebuffer = fd.read(8192)
+		except IOError:
+			self.logger.error("Failed to read data from stream")
+			if queue is not None:
+				self.queuePut("failed")
+			return False
+
+		self.logger.debug("Checking output")
+
+		if args.output:
+			if args.output == "-":
+				out = stdout
+			else:
+				out = self.check_output(args.output, args.force)
+				progress = True
+		elif args.stdout:
+			out = stdout
+		else:
+			cmd = args.player
+
+			if "vlc" in args.player:
+				cmd = cmd + " - vlc://quit"
+
+			if args.quiet_player:
+				pout = open(os.devnull, "w")
+				perr = open(os.devnull, "w")
+			else:
+				pout = sys.stderr
+				perr = sys.stdout
+
+			self.logger.info("Starting player: {0}", args.player)
+			if args.port is not None:
+				self.logger.info("Stream port is: {0}", args.port)
+			player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
+									  stdin=subprocess.PIPE)
+			out = player.stdin
+
+		if not out:
+			self.logger.error("Failed to open a valid stream output")
+			self.queuePut("failed")
+			return False
+
+		if is_win32:
+			import msvcrt
+			msvcrt.setmode(out.fileno(), os.O_BINARY)
+
+		self.logger.debug("Writing stream to output")
+		out.write(prebuffer)
+
+		self.queuePut("started")
+
+		self.write_stream(fd, out, progress)
+
+		if player:
+			try:
+				player.kill()
+			except:
+				pass
+
+	def write_stream(self, fd, out, progress):
+		written = 0
+
+		while True:
+			try:
+				#This may be causing come lag as it could still be blocking for a short amount of time.
+				if self.queueGet(False, 0) == "kill":
+						break
+			except:
+				pass
+			try:
+				data = fd.read(8192)
+			except:
+				self.logger.error("Error when reading from stream")
+				break
+
+			if len(data) == 0:
+				break
+
+			try:
+				out.write(data)
+			except IOError:
+				self.logger.error("Error when writing to output")
+				break
+
+			written += len(data)
+
+			if progress:
+				sys.stderr.write(("\rWritten {0} bytes").format(written))
+
+		if progress and written > 0:
+			sys.stderr.write("\n")
+
+		self.logger.info("Closing stream")
+		fd.close()
+
+		if out != sys.stdout:
+			out.close()
+
+	def check_output(output, force):
+		if os.path.isfile(output) and not force:
+			sys.stderr.write(("File {0} already exists! Overwrite it? [y/N] ").format(output))
+
+			try:
+				answer = input()
+			except:
+				sys.exit()
+
+			answer = answer.strip().lower()
+
+			if answer != "y":
+				sys.exit()
+
+		try:
+			out = open(output, "wb")
+		except IOError as err:
+			exit(("Failed to open file {0} - ").format(output, err))
+
+		return out
+
+	def queuePut(data):
+		try:
+			if self.queue is not None:
+				self.self.queuePut(data)
+		except:
+			raise
+
+	def queueGet(block=None, timeout=None):
+		try:
+			if self.queue is not None:
+				self.queue.get(block, timeout)
+		except:
+			raise
+
+__all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream", "StreamHandler"]

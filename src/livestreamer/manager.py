@@ -4,170 +4,26 @@ from multiprocessing import Process, Queue
 
 from livestreamer.compat import input, stdout, is_win32
 from livestreamer.logger import Logger
+from livestreamer.stream import StreamHandler
 
-logger = Logger("cli")
+logger = Logger("manager")
 
-def processArgs(args):
-	return list(filter(lambda x: (len(x)>0 and x != " "), args.split(" ")))
-
-def write_stream(fd, out, progress, queue):
-	written = 0
-
-	while True:
-		try:
-			#This may be causing come lag as it could still be blocking for a short amount of time.
-			if queue.get(False, 0) == "kill":
-				break
-		except:
-			pass
-		try:
-			data = fd.read(8192)
-		except:
-			logger.error("Error when reading from stream")
-			break
-
-		if len(data) == 0:
-			break
-
-		try:
-			out.write(data)
-		except IOError:
-			logger.error("Error when writing to output")
-			break
-
-		written += len(data)
-
-		if progress:
-			sys.stderr.write(("\rWritten {0} bytes").format(written))
-
-	if progress and written > 0:
-		sys.stderr.write("\n")
-
-	logger.info("Closing stream")
-	fd.close()
-
-	if out != stdout:
-		out.close()
-
-def output_stream(stream, args, queue):
-	progress = False
-	out = None
-	player = None
-
-	logger.info("Opening stream {0}", args.stream)
-
-	try:
-		fd = stream.open()
-	except livestreamer.StreamError as err:
-		print ("Could not open stream - {0}").format(err)
-		queue.put("failed")
-		return False
-
-	logger.debug("Pre-buffering 8192 bytes")
-	try:
-		prebuffer = fd.read(8192)
-	except IOError:
-		print "Failed to read data from stream"
-		queue.put("failed")
-		return False
-
-	logger.debug("Checking output")
-
-	if args.output:
-		if args.output == "-":
-			out = stdout
-		else:
-			out = check_output(args.output, args.force)
-			progress = True
-	elif args.stdout:
-		out = stdout
-	else:
-		cmd = args.player
-		if "vlc" in args.player:
-			cmd = cmd + " - vlc://quit"
-
-		if args.port is not None:
-			cmd = cmd.replace("{PORT}", str(args.port))
-
-		if args.quiet_player:
-			pout = open(os.devnull, "w")
-			perr = open(os.devnull, "w")
-		else:
-			pout = sys.stderr
-			perr = sys.stdout
-
-		logger.info("Starting player: {0}", args.player)
-		if args.port is not None:
-			logger.info("Stream port is: {0}", args.port)
-		player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
-								  stdin=subprocess.PIPE)
-		out = player.stdin
-
-	if not out:
-		print "Failed to open a valid stream output"
-		queue.put("failed")
-		return False
-
-	if is_win32:
-		import msvcrt
-		msvcrt.setmode(out.fileno(), os.O_BINARY)
-
-	logger.debug("Writing stream to output")
-	out.write(prebuffer)
-
-	queue.put("started")
-	write_stream(fd, out, progress, queue)
-
-	if player:
-		try:
-			player.kill()
-		except:
-			pass
-
-def handle_url(args, queue):
-	try:
-		channel = livestreamer.resolve_url(args.url)
-	except livestreamer.NoPluginError:
-		print ("No plugin can handle URL: {0}").format(args.url)
-		queue.put("failed")
-		return False
-
-	logger.info("Found matching plugin {0} for URL {1}", channel.module, args.url)
-
-	try:
-		streams = channel.get_streams()
-	except livestreamer.StreamError as err:
-		print str(err)
-		queue.put("failed")
-		return False
-	except livestreamer.PluginError as err:
-		print str(err)
-		queue.put("failed")
-		return False
-
-	if len(streams) == 0:
-		print ("No streams found on this URL: {0}").format(args.url)
-		queue.put("failed")
-		return False
-
-	keys = list(streams.keys())
-	keys.sort()
-	validstreams = (", ").join(keys)
-
-	if args.stream:
-		if args.stream in streams:
-			stream = streams[args.stream]
-
-			output_stream(stream, args, queue)
-		else:
-			print ("Invalid stream quality: {0}").format(args.stream)
-			print ("Valid streams: {0}").format(validstreams)
-			queue.put("failed")
+def processArgs(args, usage="", min=None, max=None):
+	args = list(filter(lambda x: (len(x)>0 and x != " "), args.split(" ")))
+	
+	if min is not None:
+		if len(args) < min:
+			print "stream requires at least one."
+			print usage
 			return False
-	else:
-		print ("Found streams: {0}").format(validstreams)
-		queue.put("failed")
-		return False
+	
+	if max is not None:
+		if len(args) > max:
+			print "stream requires a maximum of 3 parameters."
+			print usage
+			return False
+
+	return True
 
 class ManagerCli(cmd.Cmd):
 	def __init__(self, args):
@@ -276,15 +132,7 @@ class ManagerCli(cmd.Cmd):
 
 	def do_stream(self, args):
 		usage = "Usage: url [stream] [port]"
-		args = processArgs(args)
-		
-		if len(args) < 1:
-			print "stream requires at least one."
-			print usage
-			return False
-		if len(args) > 3:
-			print "stream requires a maximum of 3 parameters."
-			print usage
+		args = processArgs(args, usage, 1, 3)
 		
 		self.args.url = args[0]
 		if len(args) > 1:
@@ -300,7 +148,11 @@ class ManagerCli(cmd.Cmd):
 			else:
 				self.args.port = self.nextPort(self.args.min_port, self.args.max_port)
 
+			# Put the port into.
+			self.args.player = self.args.player.replace("{PORT}", str(self.args.port))
+
 		stream = {'queue': None, 'process': None, 'info': None, 'port': None}
+
 
 		if self.args.stream:
 			stream['info'] = self.args.url + " " + self.args.stream
@@ -308,16 +160,26 @@ class ManagerCli(cmd.Cmd):
 			stream['info'] = self.args.url
 
 		stream['queue'] = Queue()
-		stream['process'] = Process(target=handle_url, args=(self.args, stream['queue']))
+		stream['process'] = Process(target=StreamHandler, args=(self.args, stream['queue']))
 		stream['process'].start()
 
 		self.streamPool.append(stream)
 		
+		# Loop until we get a response as it will be pushing stuff 
+		# to the logger and we dont want to clobber any input.
 		while stream['queue'].get() is None:
 			pass
 
 class Manager():
 	def __init__(self, args):
-		interpreter = ManagerCli(args)		
-		interpreter.prompt = "livestreamer$ "
-		interpreter.cmdloop()
+		try:
+			args.cmdline = False
+			args.quiet_player = True
+			logger.set_level(args.loglevel)
+			
+			interpreter = ManagerCli(args)		
+			interpreter.prompt = "livestreamer$ "
+			interpreter.cmdloop()
+		except KeyboardInterrupt:
+			print ""
+			interpreter.killAllStreams()
