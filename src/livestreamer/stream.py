@@ -3,6 +3,7 @@ from .utils import urlopen
 from .compat import str, is_win32
 import livestreamer
 import subprocess, sys
+from multiprocessing import Process, Queue
 
 import os
 import pbs
@@ -91,6 +92,7 @@ class HTTPStream(Stream):
 class StreamHandler():
 	def __init__(self, args, queue=None):
 		try:
+			self.args = args
 			self.logger = args.logger
 			self.queue = queue
 
@@ -133,7 +135,7 @@ class StreamHandler():
 						else:
 							exit("Stream does not use a command-line")
 					else:
-						self.output_stream(stream, args, queue)
+						self.output_stream(stream)
 				else:
 					self.logger.error(("Invalid stream quality: {0}").format(args.stream))
 					self.logger.error(("Valid streams: {0}").format(validstreams))
@@ -147,10 +149,12 @@ class StreamHandler():
 		except KeyboardInterrupt:
 			pass
 		
-	def output_stream(self, stream, args, queue=None):
+	def output_stream(self, stream):
 		progress = False
 		out = None
 		player = None
+
+		args = self.args
 
 		self.logger.info("Opening stream {0}", args.stream)
 
@@ -282,18 +286,47 @@ class StreamHandler():
 
 		return out
 
-	def queuePut(data):
+	def queuePut(self, data):
 		try:
 			if self.queue is not None:
-				self.self.queuePut(data)
+				print data
+				self.queue.put(data)
 		except:
 			raise
 
-	def queueGet(block=None, timeout=None):
+	def queueGet(self, block=None, timeout=None):
 		try:
 			if self.queue is not None:
 				self.queue.get(block, timeout)
 		except:
 			raise
 
-__all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream", "StreamHandler"]
+
+class StreamThread():
+	def __init__(self, args):
+		self.args = args
+		self.queue = Queue()
+
+		print "here"
+		self.process = Process(target=StreamHandler, args=(self.args, self.queue))
+		print "here"
+		self.process.run()
+		print "here"
+
+		# Loop until we get a response as it will be pushing stuff 
+		# to the logger and we dont want to clobber any input.
+		print "here"
+		while self.queue.get() is None:
+			pass
+		print "here"
+
+	def kill_stream(self):
+		self.queue.put('kill')
+
+	def join_stream(self):
+		self.process.join()
+
+	def get_info(self):
+		return [self.args.url, self.args.stream, self.args.port]
+
+__all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream", "StreamHandler", "StreamProcess"]

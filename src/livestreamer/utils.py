@@ -3,7 +3,7 @@ from .plugins import PluginError
 
 from livestreamer.compat import urllib
 from livestreamer.plugins import PluginError
-import hmac, hashlib, zlib, argparse, urllib2
+import hmac, hashlib, zlib, argparse, socket
 
 SWF_KEY = b"Genuine Adobe Flash Player 001"
 
@@ -26,12 +26,12 @@ def urlopen(url, data=None, timeout=None, opener=None, userAgent=None):
 			fd = opener.open(url, data, timeout)
 		else:
 			if type(url) is str:
-				req = urllib2.Request(url)
+				req = urllib.Request(url)
 			else:
 				req = url
 			if userAgent is not None:
 				req.add_header("User-Agent", userAgent)
-			fd = urllib2.urlopen(req, data, timeout)
+			fd = urllib.urlopen(req, data, timeout)
 
 	except IOError as err:
 		if type(err) is urllib.URLError:
@@ -71,8 +71,6 @@ def verifyjson(json, key):
 
 	return json[key]
 
-__all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", "verifyjson"]
-
 def port(string):
 	value = int(string)
 	if value <= 1024:
@@ -82,3 +80,19 @@ def port(string):
 		msg = "%r must be less than 65535" % string
 		raise argparse.ArgumentTypeError(msg)
 	return value
+
+def next_port(args):
+	for port in range(args.min_port, args.max_port):
+		if check_port(port):
+			return port
+
+def check_port(port):
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	try:
+		s.bind(("", port))
+	except:
+		return False
+	s.close()
+	return True
+
+__all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", "verifyjson", "port", "next_port", "check_port"]
