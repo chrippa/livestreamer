@@ -92,7 +92,7 @@ def main():
 	if args.manager:
 		Manager(args)
 	elif args.url:
-		StreamHandler(args)
+		StreamThread(args)
 	elif args.plugins:
 		print_plugins()
 	else:

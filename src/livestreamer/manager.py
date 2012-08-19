@@ -36,10 +36,41 @@ class ManagerCli(cmd.Cmd):
 		self.streamIndex = self.streamIndex + 1
 		return self.streamIndex
 
+	def killAllStreams(self):
+		for id, stream in self.streamPool.items():
+			stream.kill_stream()
+		for id, stream in self.streamPool.items():
+			stream.join_stream()
+
+	def remove_stale_streams(self):
+		for id, stream in self.streamPool.items():	
+			stream.process.join(timeout=0.1)
+			if not stream.process.is_alive():
+				self.streamPool.remove(stream)
+
+	def are_running_streams(self):
+		self.remove_stale_streams()
+		return len(self.streamPool) > 0
+
+	def exit(self):
+		if(self.are_running_streams()):
+			while True:
+				print "There are streams still running!"
+				a = raw_input("Are you sure you want to quit? (y/n) ").lower()
+				if "y" in a:
+					self.killAllStreams()
+					return True
+				elif "n" in a:
+					return False
+		print ""
+		return True
+
 	def do_k(self, args):
+		'Kill a currently running stream'
 		self.do_kill(args)
 
 	def do_kill(self, args):
+		'Kill a currently running stream'
 		parser = argparse.ArgumentParser(description='Kill a running stream')
 		parser.add_argument('streamid', metavar='id', help='the stream id')
 
@@ -64,45 +95,25 @@ class ManagerCli(cmd.Cmd):
 				return False
 			elif "n" in a:
 				return False
-
-	def killAllStreams(self):
-		for i, stream in self.streamPool.items():
-			stream.kill_stream()
-		for i, stream in self.streamPool.items():
-			stream.join_stream()
-
-	def remove_stale_streams(self):
-		for stream in self.streamPool:	
-			stream.process.join(timeout=0.1)
-			if not stream.process.is_alive():
-				self.streamPool.remove(stream)
-
-	def exit(self):
-		if(self.are_running_streams()):
-			while True:
-				print "There are streams still running!"
-				a = raw_input("Are you sure you want to quit? (y/n) ").lower()
-				if "y" in a:
-					self.killAllStreams()
-					return True
-				elif "n" in a:
-					return False
-		print ""
-		return True
 	
 	def do_e(self, line):
+		'Exit the command line'
 		return self.do_exit(line)
 
 	def do_exit(self, line):
+		'Exit the command line'
 		return self.exit()
 
 	def do_EOF(self, line):
+		'Exit the command line'
 		return self.exit()
 
 	def do_l(self, line):
+		'List streams currently running'
 		self.do_list(line)
 
 	def do_list(self, line):
+		'List streams currently running'
 		self.remove_stale_streams()
 
 		if len(self.streamPool) == 0:
@@ -110,17 +121,23 @@ class ManagerCli(cmd.Cmd):
 		else:
 			fw = 12
 			print "".join([s.ljust(fw) for s in ('ID', 'URL', 'Stream', 'Port')])
-			for id, stream in self.streamPool:
+			for id, stream in self.streamPool.items():
 				print id, "\t", stream.get_info().join([str(s).ljust(fw) for s in line])
 
-	def are_running_streams(self):
-		self.remove_stale_streams()
-		return len(self.streamPool) > 0
-
 	def do_s(self, args):
+		'Start a new stream.'
 		return self.do_stream(args)
 
 	def do_stream(self, args):
+		'Start a new stream.'
+		exampleusage = """example usage:
+
+$ stream twitch.tv/onemoregametv
+Found streams: 240p, 360p, 480p, 720p, best, iphonehigh, iphonelow, live
+$ stream twitch.tv/onemoregametv 720p
+
+Stream now playbacks in player (default is VLC).
+"""
 		parser = argparse.ArgumentParser(description='Kill a running stream')
 		parser.add_argument("url", help="URL to stream", nargs="?", default=self.args.url)
 		parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available", nargs="?", default=self.args.stream)
@@ -142,7 +159,7 @@ class ManagerCli(cmd.Cmd):
 			return False
 	
 		if not args.url:
-			print "TODO: PUT USAGE HERE"
+			print exampleusage
 			return False
 
 		if "{PORT}" in args.player:				
