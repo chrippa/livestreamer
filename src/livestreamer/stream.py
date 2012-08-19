@@ -289,7 +289,6 @@ class StreamHandler():
 	def queuePut(self, data):
 		try:
 			if self.queue is not None:
-				print data
 				self.queue.put(data)
 		except:
 			raise
@@ -307,18 +306,13 @@ class StreamThread():
 		self.args = args
 		self.queue = Queue()
 
-		print "here"
 		self.process = Process(target=StreamHandler, args=(self.args, self.queue))
-		print "here"
-		self.process.run()
-		print "here"
+		self.process.start()
 
 		# Loop until we get a response as it will be pushing stuff 
 		# to the logger and we dont want to clobber any input.
-		print "here"
 		while self.queue.get() is None:
 			pass
-		print "here"
 
 	def kill_stream(self):
 		self.queue.put('kill')

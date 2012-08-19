@@ -29,7 +29,7 @@ class ManagerCli(cmd.Cmd):
 	def __init__(self, args):
 		cmd.Cmd.__init__(self)
 		self.args = args
-		self.streamPool = {}
+		self.streamPool = dict()
 		self.streamIndex = 0
 
 	def get_stream_id(self):
@@ -66,9 +66,9 @@ class ManagerCli(cmd.Cmd):
 				return False
 
 	def killAllStreams(self):
-		for stream in self.streamPool:
+		for i, stream in self.streamPool.items():
 			stream.kill_stream()
-		for stream in self.streamPool:
+		for i, stream in self.streamPool.items():
 			stream.join_stream()
 
 	def remove_stale_streams(self):
@@ -158,8 +158,8 @@ class ManagerCli(cmd.Cmd):
 		args.logger = self.args.logger
 	
 		stream = StreamThread(args)
-		stream.run()
 		self.streamPool[self.get_stream_id()] = stream
+		stream.kill_stream()
 
 class Manager():
 	def __init__(self, args):
