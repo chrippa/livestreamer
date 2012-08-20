@@ -5,7 +5,7 @@ from .utils import port
 
 from livestreamer.compat import input, stdout, is_win32
 from livestreamer.logger import Logger
-from livestreamer.stream import StreamThread
+from livestreamer.stream import StreamHandler
 
 exampleusage = """
 example usage:
@@ -92,7 +92,7 @@ def main():
 	if args.manager:
 		Manager(args)
 	elif args.url:
-		StreamThread(args)
+		StreamHandler(args)
 	elif args.plugins:
 		print_plugins()
 	else:
