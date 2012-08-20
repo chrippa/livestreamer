@@ -1,6 +1,7 @@
 from . import options
 from .utils import urlopen
 from .compat import str, is_win32
+from .logger import Logger
 import livestreamer
 import subprocess, sys
 from multiprocessing import Process, Queue
@@ -93,8 +94,11 @@ class StreamHandler():
 	def __init__(self, args, queue=None):
 		try:
 			self.args = args
-			self.logger = args.logger
 			self.queue = queue
+			
+			self.logger = Logger("stream")
+			self.logger.set_output(sys.stderr)
+			self.logger.set_level(args.loglevel)
 
 			try:
 				channel = livestreamer.resolve_url(args.url)
@@ -198,7 +202,7 @@ class StreamHandler():
 				perr = sys.stdout
 
 			self.logger.info("Starting player: {0}", args.player)
-			if args.port is not None:
+			if args.port:
 				self.logger.info("Stream port is: {0}", args.port)
 			player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
 									  stdin=subprocess.PIPE)
@@ -289,20 +293,23 @@ class StreamHandler():
 	def queuePut(self, data):
 		try:
 			if self.queue is not None:
-				self.queue.put(data)
+				return self.queue.put(data)
 		except:
 			raise
 
 	def queueGet(self, block=None, timeout=None):
 		try:
 			if self.queue is not None:
-				self.queue.get(block, timeout)
+				output = self.queue.get(block, timeout)
+				self.logger.debug("Reading from the queue returned " + output)
+				return output
 		except:
 			raise
 
 
 class StreamThread():
-	def __init__(self, args):
+	def __init__(self, id, args):
+		self.id = id
 		self.args = args
 		self.queue = Queue()
 
@@ -321,6 +328,6 @@ class StreamThread():
 		self.process.join()
 
 	def get_info(self):
-		return [self.args.url, self.args.stream, self.args.port]
+		return [self.id, self.args.url, self.args.stream, self.args.port]
 
 __all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream", "StreamHandler", "StreamProcess"]
