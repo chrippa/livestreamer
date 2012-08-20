@@ -5,24 +5,7 @@ from .stream import StreamThread
 from .utils import next_port, check_port
 from prettytable import PrettyTable
 
-import sys, os, argparse, subprocess, cmd
-
-def processArgs(args, name="", usage="", min=None, max=None):
-	args = list(filter(lambda x: (len(x)>0 and x != " "), args.split(" ")))
-	
-	if min is not None:
-		if len(args) < min:
-			print name, "requires at least", min, "."
-			print usage
-			return None
-	
-	if max is not None:
-		if len(args) > max:
-			print stream, "requires a maximum of", max, "parameters."
-			print usage
-			return None
-
-	return args
+import sys, os, argparse, subprocess, cmd, getpass
 
 class ManagerCli(cmd.Cmd):
 	def __init__(self, args):
@@ -65,13 +48,13 @@ class ManagerCli(cmd.Cmd):
 		return True
 
 	def do_k(self, args):
-		'Kill a currently running stream'
+		'Kill a running stream'
 		self.do_kill(args)
 
 	def do_kill(self, args):
-		'Kill a currently running stream'
+		'Kill a running stream'
 		parser = argparse.ArgumentParser(description='Kill a running stream')
-		parser.add_argument('streamid', metavar='id', help='the stream id or all to kill all streams')
+		parser.add_argument('streamid', metavar='id', help='the stream id or "all" to kill all streams')
 
 		try:
 			args = parser.parse_args(args.split(" "))
@@ -101,23 +84,23 @@ class ManagerCli(cmd.Cmd):
 			elif "n" in a:
 				return False
 	
-	def do_e(self, line):
+	def do_e(self, args):
 		'Exit the command line'
 		return self.do_exit(line)
 
-	def do_exit(self, line):
+	def do_exit(self, args):
 		'Exit the command line'
 		return self.exit()
 
-	def do_EOF(self, line):
+	def do_EOF(self, args):
 		'Exit the command line'
 		return self.exit()
 
-	def do_l(self, line):
+	def do_l(self, args):
 		'List streams currently running'
 		self.do_list(line)
 
-	def do_list(self, line):
+	def do_list(self, args):
 		'List streams currently running'
 		self.remove_stale_streams()
 
@@ -133,11 +116,11 @@ class ManagerCli(cmd.Cmd):
 		print table
 
 	def do_s(self, args):
-		'Start a new stream.'
+		'Start a new stream'
 		return self.do_stream(args)
 
 	def do_stream(self, args):
-		'Start a new stream.'
+		'Start a new stream'
 		exampleusage = """example usage:
 
 $ stream twitch.tv/onemoregametv
@@ -146,7 +129,7 @@ $ stream twitch.tv/onemoregametv 720p
 
 Stream now playbacks in player (default is VLC).
 """
-		parser = argparse.ArgumentParser(description='Kill a running stream')
+		parser = argparse.ArgumentParser(description='Start a new stream')
 		parser.add_argument("url", help="URL to stream", nargs="?", default=self.args.url)
 		parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available", nargs="?", default=self.args.stream)
 
@@ -186,6 +169,25 @@ Stream now playbacks in player (default is VLC).
 	
 		stream = StreamThread(self.get_stream_id(), args)
 		self.streamPool[stream.id] = stream
+
+	def do_username(self, args):
+		"Set the username for the GOMTV.net plugin"
+		parser = argparse.ArgumentParser(description="Set the username for the GOMTV.net plugin")
+		parser.add_argument('username', metavar='username', help='the username for you GOMTV.net account')
+
+		try:
+			args = parser.parse_args(args.split(" "))
+		except SystemExit:
+			return False
+
+		if not args.username:
+			print "username requires one argument: username [username]"
+		else:
+			livestreamer.options.set("username", args.username)
+
+	def do_password(self, args):
+		"Set the password for the GOMTV.net plugin"
+		livestreamer.options.set("password", getpass.getpass("GOMTV.net password:"))
 
 class Manager():
 	def __init__(self, args):
