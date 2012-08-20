@@ -86,7 +86,7 @@ class ManagerCli(cmd.Cmd):
 	
 	def do_e(self, args):
 		'Exit the command line'
-		return self.do_exit(line)
+		return self.do_exit(args)
 
 	def do_exit(self, args):
 		'Exit the command line'
@@ -98,7 +98,7 @@ class ManagerCli(cmd.Cmd):
 
 	def do_l(self, args):
 		'List streams currently running'
-		self.do_list(line)
+		self.do_list(args)
 
 	def do_list(self, args):
 		'List streams currently running'
