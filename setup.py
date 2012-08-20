@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 from sys import version_info, platform, prefix
 
 version = "1.1.0"
-deps = ["pbs"]
+deps = ["pbs", "PrettyTable"]
 
 # require argparse on Python <2.7 and <3.2
 if (version_info[0] == 2 and version_info[1] < 7) or \
