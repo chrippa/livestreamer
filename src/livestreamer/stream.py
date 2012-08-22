@@ -1,4 +1,3 @@
-from . import options
 from .utils import urlopen
 from .compat import str, is_win32
 from .logger import Logger
@@ -23,7 +22,7 @@ class StreamProcess(Stream):
         self.params = params or {}
         self.params["_bg"] = True
         self.params["_err"] = open(os.devnull, "w")
-        self.errorlog = options.get("errorlog")
+        self.errorlog = args.errorlog
 
     def cmdline(self):
         return str(self.cmd.bake(**self.params))
@@ -52,7 +51,7 @@ class RTMPStream(StreamProcess):
     def __init__(self, params):
         StreamProcess.__init__(self, params)
 
-        self.rtmpdump = options.get("rtmpdump") or (is_win32 and "rtmpdump.exe" or "rtmpdump")
+        self.rtmpdump = args.rtmpdump or (is_win32 and "rtmpdump.exe" or "rtmpdump")
         self.params["flv"] = "-"
 
         try:
@@ -101,7 +100,7 @@ class StreamHandler():
 			self.logger.set_level(args.loglevel)
 
 			try:
-				channel = livestreamer.resolve_url(args.url)
+				channel = livestreamer.resolve_url(args)
 			except livestreamer.NoPluginError:
 				self.logger.error("No plugin can handle URL: {0}".format(args.url))
 				self.queuePut("failed")

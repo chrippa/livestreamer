@@ -152,7 +152,7 @@ Stream now playbacks in player (default is VLC).
 		if not args.url:
 			print exampleusage
 			return False
-
+	
 		if "{PORT}" in args.player:				
 			if not check_port(args.port):
 				logger.error("The port", str(args.port), "is already in use.")
@@ -166,6 +166,10 @@ Stream now playbacks in player (default is VLC).
 		args.stdout = False
 		args.quiet_player = True
 		args.loglevel = self.args.loglevel
+		
+		args.username = self.args.username
+		args.password = self.args.password
+		args.jtv_cookie = self.args.jtv_cookie
 	
 		stream = StreamThread(self.get_stream_id(), args)
 		self.streamPool[stream.id] = stream
@@ -183,11 +187,11 @@ Stream now playbacks in player (default is VLC).
 		if not args.username:
 			print "username requires one argument: username [username]"
 		else:
-			livestreamer.options.set("username", args.username)
+			self.args.username = args.username
 
 	def do_password(self, args):
 		"Set the password for the GOMTV.net plugin"
-		livestreamer.options.set("password", getpass.getpass("GOMTV.net password:"))
+		self.args.password = raw_input("Password: ")
 
 class Manager():
 	def __init__(self, args):
@@ -196,9 +200,6 @@ class Manager():
 			args.quiet_player = True
 
 			logger = Logger("manager")
-			logger.set_output(sys.stderr)
-			logger.set_level(args.loglevel)
-			args.logger = logger
 			
 			interpreter = ManagerCli(args)		
 			interpreter.prompt = "livestreamer$ "

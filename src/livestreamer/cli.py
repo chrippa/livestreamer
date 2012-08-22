@@ -79,12 +79,6 @@ def main():
 	if args.stdout or args.output == "-":
 		set_msg_output(sys.stderr)
 
-	livestreamer.options.set("errorlog", args.errorlog)
-	livestreamer.options.set("rtmpdump", args.rtmpdump)
-	livestreamer.options.set("jtvcookie", args.jtv_cookie)
-	livestreamer.options.set("username", args.username)
-	livestreamer.options.set("password", args.password)
-
 	logger.set_level(args.loglevel)
 	args.logger = logger
 	args.port = None

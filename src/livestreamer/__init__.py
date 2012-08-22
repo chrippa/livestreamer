@@ -1,7 +1,8 @@
 from . import plugins, stream
 from .compat import urlparse
 
-def resolve_url(url):
+def resolve_url(args):
+    url = args.url
     parsed = urlparse(url)
 
     if len(parsed.scheme) == 0:
@@ -9,7 +10,7 @@ def resolve_url(url):
 
     for name, plugin in plugins.get_plugins().items():
         if plugin.can_handle_url(url):
-            obj = plugin(url)
+            obj = plugin(args)
             return obj
 
     raise plugins.NoPluginError()

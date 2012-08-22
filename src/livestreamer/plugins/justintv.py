@@ -2,7 +2,6 @@ from livestreamer.plugins import Plugin, PluginError, NoStreamsError, register_p
 from livestreamer.stream import RTMPStream
 from livestreamer.utils import swfverify, urlget
 from livestreamer.compat import urllib, str
-from livestreamer import options
 
 import xml.dom.minidom, re, sys, random
 
@@ -19,7 +18,7 @@ class JustinTV(Plugin):
         return url.rstrip("/").rpartition("/")[2]
 
     def _get_metadata(self, channel):
-        cookie = options.get("jtvcookie")
+        cookie = self.args.jtv_cookie
 
         if cookie:
             headers = {"Cookie": cookie}
@@ -64,7 +63,7 @@ class JustinTV(Plugin):
 
 
         chansub = None
-        if options.get("jtvcookie"):
+        if self.args.jtv_cookie:
             self.logger.debug("Attempting to authenticate using cookie")
 
             metadata = self._get_metadata(channelname)

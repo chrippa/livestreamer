@@ -25,7 +25,6 @@ from livestreamer.compat import str, bytes, urlencode
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError, register_plugin
 from livestreamer.stream import HTTPStream
 from livestreamer.utils import urlget, urllib
-from livestreamer import options
 
 import xml.dom.minidom, re
 import cookielib
@@ -41,7 +40,7 @@ class GomTV(Plugin):
 		cookiejar = cookielib.LWPCookieJar()
 		self.opener = urllib.build_opener(urllib.HTTPCookieProcessor(cookiejar))
 
-		self.authenticate(options.get("username"), options.get("password"))
+		self.authenticate(self.args.username, self.args.password)
 
 		streams = {}
 		qualities = ["HQ", "SQ", "HQTest", "SQTest"]

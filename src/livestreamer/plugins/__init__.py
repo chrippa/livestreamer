@@ -6,9 +6,9 @@ from livestreamer.logger import Logger
 plugins_loaded = {}
 
 class Plugin(object):
-    def __init__(self, url):
-        self.url = url
-        self.args = None
+    def __init__(self, args):
+        self.url = args.url
+        self.args = args
         self.logger = Logger("plugin." + self.module)
 
     @classmethod
