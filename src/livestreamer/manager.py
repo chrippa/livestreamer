@@ -2,10 +2,10 @@ import livestreamer
 from .compat import input, stdout, is_win32
 from .logger import Logger
 from .stream import StreamThread
-from .utils import next_port, check_port
+from .utils import next_port, check_port, get_password
 from prettytable import PrettyTable
 
-import sys, os, argparse, subprocess, cmd, getpass
+import sys, os, argparse, subprocess, cmd
 
 class ManagerCli(cmd.Cmd):
 	def __init__(self, args):
@@ -191,7 +191,7 @@ Stream now playbacks in player (default is VLC).
 
 	def do_password(self, args):
 		"Set the password for the GOMTV.net plugin"
-		self.args.password = raw_input("Password: ")
+		self.args.password = get_password("Password: ")
 
 class Manager():
 	def __init__(self, args):

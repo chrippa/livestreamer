@@ -3,7 +3,7 @@ from .plugins import PluginError
 
 from livestreamer.compat import urllib
 from livestreamer.plugins import PluginError
-import hmac, hashlib, zlib, argparse, socket
+import hmac, hashlib, zlib, argparse, socket, getpass
 
 SWF_KEY = b"Genuine Adobe Flash Player 001"
 
@@ -94,5 +94,8 @@ def check_port(port):
 		return False
 	s.close()
 	return True
+	
+def get_password(prompt="Password: "):
+	return getpass.getpass(prompt)
 
-__all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", "verifyjson", "port", "next_port", "check_port"]
+__all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", "verifyjson", "port", "next_port", "check_port", "get_password"]

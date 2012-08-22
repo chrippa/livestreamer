@@ -1,7 +1,7 @@
 import sys, os, argparse
 import livestreamer
 from .manager import Manager
-from .utils import port
+from .utils import port, get_password
 
 from livestreamer.compat import input, stdout, is_win32
 from livestreamer.logger import Logger
@@ -50,7 +50,7 @@ pluginopt.add_argument("-e", "--errorlog", action="store_true", help="Log possib
 pluginopt.add_argument("-r", "--rtmpdump", metavar="path", help="Specify location of rtmpdump")
 pluginopt.add_argument("-j", "--jtv-cookie", metavar="cookie", help="Specify JustinTV cookie to allow access to subscription channels")
 pluginopt.add_argument("-U", "--username", metavar="username", help="Authentication username used for GomTV plugin.")
-pluginopt.add_argument("-P", "--password", metavar="password", help="Authentication password used for GomTV plugin.")
+pluginopt.add_argument("-P", "--password", action="store_true", help="Authentication password used for GomTV plugin. You will be prompted to type this.")
 
 RCFILE = os.path.expanduser("~/.livestreamerrc")
 
@@ -82,6 +82,9 @@ def main():
 	logger.set_level(args.loglevel)
 	args.logger = logger
 	args.port = None
+	
+	if args.password:
+		args.password = get_password()
 	
 	if args.manager:
 		Manager(args)
