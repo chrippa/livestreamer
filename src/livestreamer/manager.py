@@ -131,18 +131,26 @@ Stream now playbacks in player (default is VLC).
 """
 		parser = argparse.ArgumentParser(description='Start a new stream')
 		parser.add_argument("url", help="URL to stream", nargs="?", default=self.args.url)
-		parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available", nargs="?", default=self.args.stream)
+		parser.add_argument("stream", 
+			help="Stream quality to play, use 'best' for highest quality available", 
+			nargs="?", default=self.args.stream)
 
 		playeropt = parser.add_argument_group("player options")
-		playeropt.add_argument("-p", "--player", metavar="player", help="Command-line for player, default is 'vlc'", default="vlc")
-		playeropt.add_argument("-P", "--port", metavar="port", help="The port to use if the player command contains '{PORT}'", default=next_port(self.args))
+		playeropt.add_argument("-p", "--player", metavar="player", 
+			help="Command-line for player, default is 'vlc'", default="vlc")
+		playeropt.add_argument("-P", "--port", metavar="port", 
+			help="The port to use if the player command contains '{PORT}'", default=next_port(self.args))
 
 		outputopt = parser.add_argument_group("file output options")
-		outputopt.add_argument("-o", "--output", metavar="filename", help="Write stream to file instead of playing it", default=self.args.output)
-		outputopt.add_argument("-f", "--force", action="store_true", help="Always write to file even if it already exists", default=self.args.force)
+		outputopt.add_argument("-o", "--output", metavar="filename", 
+			help="Write stream to file instead of playing it", default=self.args.output)
+		outputopt.add_argument("-f", "--force", action="store_true", 
+			help="Always write to file even if it already exists", default=self.args.force)
 
 		pluginopt = parser.add_argument_group("plugin options")
-		pluginopt.add_argument("-c", "--cmdline", action="store_true", help="Print command-line used internally to play stream, this may not be available on all streams", default=self.args.cmdline)
+		pluginopt.add_argument("-c", "--cmdline", action="store_true", 
+			help="Print command-line used internally to play stream, this may not be available on all streams", 
+			default=self.args.cmdline)
 
 		try:
 			args = parser.parse_args(args.split(" "))

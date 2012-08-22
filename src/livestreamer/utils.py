@@ -98,4 +98,5 @@ def check_port(port):
 def get_password(prompt="Password: "):
 	return getpass.getpass(prompt)
 
-__all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", "verifyjson", "port", "next_port", "check_port", "get_password"]
+__all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", 
+			"verifyjson", "port", "next_port", "check_port", "get_password"]
