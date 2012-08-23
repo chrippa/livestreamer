@@ -100,7 +100,7 @@ class OwnedTV(Plugin):
                         "swfhash": swfhash,
                         "swfsize": swfsize,
                         "pageUrl": self.url
-                    })
+                    }, self.args)
 
         return streams
 

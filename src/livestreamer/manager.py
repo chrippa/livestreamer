@@ -174,6 +174,8 @@ Stream now playbacks in player (default is VLC).
 		args.stdout = False
 		args.quiet_player = True
 		args.loglevel = self.args.loglevel
+		args.errorlog = self.args.errorlog
+		args.rtmpdump = self.args.rtmpdump
 		
 		args.username = self.args.username
 		args.password = self.args.password

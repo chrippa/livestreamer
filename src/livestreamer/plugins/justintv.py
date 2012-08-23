@@ -106,7 +106,7 @@ class JustinTV(Plugin):
                 "swfhash": swfhash,
                 "swfsize": swfsize,
                 "live": True
-            })
+            }, self.args)
 
             sname = clean_tag(node.tagName)
 

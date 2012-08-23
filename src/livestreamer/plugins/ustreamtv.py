@@ -46,7 +46,7 @@ class UStreamTV(Plugin):
                 "pageUrl": self.url,
                 "swfUrl": self.SWFURL,
                 "live": True
-            })
+            }, self.args)
             streams["live"] = stream
 
         return streams

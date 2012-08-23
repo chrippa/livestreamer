@@ -13,16 +13,17 @@ import tempfile
 class StreamError(Exception):
     pass
 
-class Stream(object):
+class Stream(object):        
     def open(self):
        raise NotImplementedError
 
 class StreamProcess(Stream):
-    def __init__(self, params):
+    def __init__(self, params, args):
+        self.args = args
         self.params = params or {}
         self.params["_bg"] = True
         self.params["_err"] = open(os.devnull, "w")
-        self.errorlog = args.errorlog
+        self.errorlog = self.args.errorlog
 
     def cmdline(self):
         return str(self.cmd.bake(**self.params))
@@ -48,10 +49,10 @@ class StreamProcess(Stream):
         return stream.process.stdout
 
 class RTMPStream(StreamProcess):
-    def __init__(self, params):
-        StreamProcess.__init__(self, params)
+    def __init__(self, params, args):
+        StreamProcess.__init__(self, params, args)
 
-        self.rtmpdump = args.rtmpdump or (is_win32 and "rtmpdump.exe" or "rtmpdump")
+        self.rtmpdump = self.args.rtmpdump or (is_win32 and "rtmpdump.exe" or "rtmpdump")
         self.params["flv"] = "-"
 
         try:
@@ -83,250 +84,250 @@ class HTTPStream(Stream):
         self.userAgent = userAgent
 
     def open(self):
-		try:
-			return urlopen(self.url, userAgent=self.userAgent)
-		except:
-			raise StreamError("Http connection error")
+        try:
+            return urlopen(self.url, userAgent=self.userAgent)
+        except:
+            raise StreamError("Http connection error")
 
 
 class StreamHandler():
-	def __init__(self, args, queue=None):
-		try:
-			self.args = args
-			self.queue = queue
-			
-			self.logger = Logger("stream")
-			self.logger.set_output(sys.stderr)
-			self.logger.set_level(args.loglevel)
+    def __init__(self, args, queue=None):
+        try:
+            self.args = args
+            self.queue = queue
+            
+            self.logger = Logger("stream")
+            self.logger.set_output(sys.stderr)
+            self.logger.set_level(args.loglevel)
 
-			try:
-				channel = livestreamer.resolve_url(args)
-			except livestreamer.NoPluginError:
-				self.logger.error("No plugin can handle URL: {0}".format(args.url))
-				self.queuePut("failed")
-				return None
+            try:
+                channel = livestreamer.resolve_url(args)
+            except livestreamer.NoPluginError:
+                self.logger.error("No plugin can handle URL: {0}".format(args.url))
+                self.queuePut("failed")
+                return None
 
-			self.logger.info("Found matching plugin {0} for URL {1}".format(channel.module, args.url))
+            self.logger.info("Found matching plugin {0} for URL {1}".format(channel.module, args.url))
 
-			try:
-				streams = channel.get_streams()
-			except livestreamer.StreamError as err:
-				self.logger.error(str(err))
-				self.queuePut("failed")
-				return None
-			except livestreamer.PluginError as err:
-				self.logger.error(str(err))
-				self.queuePut("failed")
-				return None
+            try:
+                streams = channel.get_streams()
+            except livestreamer.StreamError as err:
+                self.logger.error(str(err))
+                self.queuePut("failed")
+                return None
+            except livestreamer.PluginError as err:
+                self.logger.error(str(err))
+                self.queuePut("failed")
+                return None
 
-			if len(streams) == 0:
-				self.logger.error(("No streams found on this URL: {0}").format(args.url))
-				self.queuePut("failed")
-				return None
+            if len(streams) == 0:
+                self.logger.error(("No streams found on this URL: {0}").format(args.url))
+                self.queuePut("failed")
+                return None
 
-			keys = list(streams.keys())
-			keys.sort()	
-			validstreams = (", ").join(keys)
+            keys = list(streams.keys())
+            keys.sort()    
+            validstreams = (", ").join(keys)
 
-			if args.stream:
-				if args.stream in streams:
-					stream = streams[args.stream]
+            if args.stream:
+                if args.stream in streams:
+                    stream = streams[args.stream]
 
-					if args.cmdline:
-						if isinstance(stream, livestreamer.stream.StreamProcess):
-							msg(stream.cmdline())
-						else:
-							exit("Stream does not use a command-line")
-					else:
-						self.output_stream(stream)
-				else:
-					self.logger.error(("Invalid stream quality: {0}").format(args.stream))
-					self.logger.error(("Valid streams: {0}").format(validstreams))
-					self.queuePut("failed")
-					return None
-			else:
-				self.logger.error(("Found streams: {0}").format(validstreams))
-				if queue is not None:
-					self.queuePut("failed")
-				return None
-		except KeyboardInterrupt:
-			pass
-		
-	def output_stream(self, stream):
-		progress = False
-		out = None
-		player = None
+                    if args.cmdline:
+                        if isinstance(stream, livestreamer.stream.StreamProcess):
+                            msg(stream.cmdline())
+                        else:
+                            exit("Stream does not use a command-line")
+                    else:
+                        self.output_stream(stream)
+                else:
+                    self.logger.error(("Invalid stream quality: {0}").format(args.stream))
+                    self.logger.error(("Valid streams: {0}").format(validstreams))
+                    self.queuePut("failed")
+                    return None
+            else:
+                self.logger.error(("Found streams: {0}").format(validstreams))
+                if queue is not None:
+                    self.queuePut("failed")
+                return None
+        except KeyboardInterrupt:
+            pass
+        
+    def output_stream(self, stream):
+        progress = False
+        out = None
+        player = None
 
-		args = self.args
+        args = self.args
 
-		self.logger.info("Opening stream {0}", args.stream)
+        self.logger.info("Opening stream {0}", args.stream)
 
-		try:
-			fd = stream.open()
-		except livestreamer.StreamError as err:
-			self.logger.error("Could not open stream - {0}").format(err)
-			self.queuePut("failed")
-			return False
+        try:
+            fd = stream.open()
+        except livestreamer.StreamError as err:
+            self.logger.error("Could not open stream - {0}").format(err)
+            self.queuePut("failed")
+            return False
 
-		self.logger.debug("Pre-buffering 8192 bytes")
-		try:
-			prebuffer = fd.read(8192)
-		except IOError:
-			self.logger.error("Failed to read data from stream")
-			if queue is not None:
-				self.queuePut("failed")
-			return False
+        self.logger.debug("Pre-buffering 8192 bytes")
+        try:
+            prebuffer = fd.read(8192)
+        except IOError:
+            self.logger.error("Failed to read data from stream")
+            if queue is not None:
+                self.queuePut("failed")
+            return False
 
-		self.logger.debug("Checking output")
+        self.logger.debug("Checking output")
 
-		if args.output:
-			if args.output == "-":
-				out = stdout
-			else:
-				out = self.check_output(args.output, args.force)
-				progress = True
-		elif args.stdout:
-			out = stdout
-		else:
-			cmd = args.player
+        if args.output:
+            if args.output == "-":
+                out = stdout
+            else:
+                out = self.check_output(args.output, args.force)
+                progress = True
+        elif args.stdout:
+            out = stdout
+        else:
+            cmd = args.player
 
-			if "vlc" in args.player:
-				cmd = cmd + " - vlc://quit"
+            if "vlc" in args.player:
+                cmd = cmd + " - vlc://quit"
 
-			if args.quiet_player:
-				pout = open(os.devnull, "w")
-				perr = open(os.devnull, "w")
-			else:
-				pout = sys.stderr
-				perr = sys.stdout
+            if args.quiet_player:
+                pout = open(os.devnull, "w")
+                perr = open(os.devnull, "w")
+            else:
+                pout = sys.stderr
+                perr = sys.stdout
 
-			self.logger.info("Starting player: {0}", args.player)
-			if args.port:
-				self.logger.info("Stream port is: {0}", args.port)
-			player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
-									  stdin=subprocess.PIPE)
-			out = player.stdin
+            self.logger.info("Starting player: {0}", args.player)
+            if args.port:
+                self.logger.info("Stream port is: {0}", args.port)
+            player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
+                                      stdin=subprocess.PIPE)
+            out = player.stdin
 
-		if not out:
-			self.logger.error("Failed to open a valid stream output")
-			self.queuePut("failed")
-			return False
+        if not out:
+            self.logger.error("Failed to open a valid stream output")
+            self.queuePut("failed")
+            return False
 
-		if is_win32:
-			import msvcrt
-			msvcrt.setmode(out.fileno(), os.O_BINARY)
+        if is_win32:
+            import msvcrt
+            msvcrt.setmode(out.fileno(), os.O_BINARY)
 
-		self.logger.debug("Writing stream to output")
-		out.write(prebuffer)
+        self.logger.debug("Writing stream to output")
+        out.write(prebuffer)
 
-		self.queuePut("started")
+        self.queuePut("started")
 
-		self.write_stream(fd, out, progress)
+        self.write_stream(fd, out, progress)
 
-		if player:
-			try:
-				player.kill()
-			except:
-				pass
+        if player:
+            try:
+                player.kill()
+            except:
+                pass
 
-	def write_stream(self, fd, out, progress):
-		written = 0
+    def write_stream(self, fd, out, progress):
+        written = 0
 
-		while True:
-			try:
-				#This may be causing come lag as it could still be blocking for a short amount of time.
-				if self.queueGet(False, 0) == "kill":
-						break
-			except:
-				pass
-			try:
-				data = fd.read(8192)
-			except:
-				self.logger.error("Error when reading from stream")
-				break
+        while True:
+            try:
+                #This may be causing come lag as it could still be blocking for a short amount of time.
+                if self.queueGet(False, 0) == "kill":
+                        break
+            except:
+                pass
+            try:
+                data = fd.read(8192)
+            except:
+                self.logger.error("Error when reading from stream")
+                break
 
-			if len(data) == 0:
-				break
+            if len(data) == 0:
+                break
 
-			try:
-				out.write(data)
-			except IOError:
-				self.logger.error("Error when writing to output")
-				break
+            try:
+                out.write(data)
+            except IOError:
+                self.logger.error("Error when writing to output")
+                break
 
-			written += len(data)
+            written += len(data)
 
-			if progress:
-				sys.stderr.write(("\rWritten {0} bytes").format(written))
+            if progress:
+                sys.stderr.write(("\rWritten {0} bytes").format(written))
 
-		if progress and written > 0:
-			sys.stderr.write("\n")
+        if progress and written > 0:
+            sys.stderr.write("\n")
 
-		self.logger.info("Closing stream")
-		fd.close()
+        self.logger.info("Closing stream")
+        fd.close()
 
-		if out != sys.stdout:
-			out.close()
+        if out != sys.stdout:
+            out.close()
 
-	def check_output(output, force):
-		if os.path.isfile(output) and not force:
-			sys.stderr.write(("File {0} already exists! Overwrite it? [y/N] ").format(output))
+    def check_output(output, force):
+        if os.path.isfile(output) and not force:
+            sys.stderr.write(("File {0} already exists! Overwrite it? [y/N] ").format(output))
 
-			try:
-				answer = input()
-			except:
-				sys.exit()
+            try:
+                answer = input()
+            except:
+                sys.exit()
 
-			answer = answer.strip().lower()
+            answer = answer.strip().lower()
 
-			if answer != "y":
-				sys.exit()
+            if answer != "y":
+                sys.exit()
 
-		try:
-			out = open(output, "wb")
-		except IOError as err:
-			exit(("Failed to open file {0} - ").format(output, err))
+        try:
+            out = open(output, "wb")
+        except IOError as err:
+            exit(("Failed to open file {0} - ").format(output, err))
 
-		return out
+        return out
 
-	def queuePut(self, data):
-		try:
-			if self.queue is not None:
-				return self.queue.put(data)
-		except:
-			raise
+    def queuePut(self, data):
+        try:
+            if self.queue is not None:
+                return self.queue.put(data)
+        except:
+            raise
 
-	def queueGet(self, block=None, timeout=None):
-		try:
-			if self.queue is not None:
-				output = self.queue.get(block, timeout)
-				self.logger.debug("Reading from the queue returned " + output)
-				return output
-		except:
-			raise
+    def queueGet(self, block=None, timeout=None):
+        try:
+            if self.queue is not None:
+                output = self.queue.get(block, timeout)
+                self.logger.debug("Reading from the queue returned " + output)
+                return output
+        except:
+            raise
 
 
 class StreamThread():
-	def __init__(self, id, args):
-		self.id = id
-		self.args = args
-		self.queue = Queue()
+    def __init__(self, id, args):
+        self.id = id
+        self.args = args
+        self.queue = Queue()
 
-		self.process = Process(target=StreamHandler, args=(self.args, self.queue))
-		self.process.start()
+        self.process = Process(target=StreamHandler, args=(self.args, self.queue))
+        self.process.start()
 
-		# Loop until we get a response as it will be pushing stuff 
-		# to the logger and we dont want to clobber any input.
-		while self.queue.get() is None:
-			pass
+        # Loop until we get a response as it will be pushing stuff 
+        # to the logger and we dont want to clobber any input.
+        while self.queue.get() is None:
+            pass
 
-	def kill_stream(self):
-		self.queue.put('kill')
+    def kill_stream(self):
+        self.queue.put('kill')
 
-	def join_stream(self):
-		self.process.join()
+    def join_stream(self):
+        self.process.join()
 
-	def get_info(self):
-		return [self.id, self.args.url, self.args.stream, self.args.port]
+    def get_info(self):
+        return [self.id, self.args.url, self.args.stream, self.args.port]
 
-__all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream", "StreamHandler", "StreamProcess"]
+__all__ = ["StreamError", "Stream", "StreamProcess", "RTMPStream", "HTTPStream", "StreamHandler", "StreamThread"]

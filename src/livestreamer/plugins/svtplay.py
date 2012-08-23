@@ -55,7 +55,7 @@ class SVTPlay(Plugin):
                 "swfhash": swfhash,
                 "swfsize": swfsize,
                 "live": True
-            })
+            }, self.args)
             streams[str(video["bitrate"]) + "k"] = stream
 
 
