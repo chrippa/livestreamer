@@ -1,9 +1,9 @@
-from .compat import urllib
+from .compat import urllib, is_win32
 from .plugins import PluginError
 
 from livestreamer.compat import urllib
 from livestreamer.plugins import PluginError
-import hmac, hashlib, zlib, argparse, socket, getpass
+import hmac, hashlib, zlib, argparse, socket, getpass, os
 
 SWF_KEY = b"Genuine Adobe Flash Player 001"
 
