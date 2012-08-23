@@ -32,12 +32,14 @@ parser.add_argument("-h", "--help", action="store_true", help="Show this help me
 parser.add_argument("-u", "--plugins", action="store_true", help="Print all currently installed plugins")
 parser.add_argument("-l", "--loglevel", metavar="level", help="Set log level, valid levels: none, error, warning, info, debug", default="info")
 parser.add_argument("-m", "--manager", action="store_true", help="Start the stream manager")
-parser.add_argument("--min-port", metavar="port", help="Minimum port in the range for stream manager to start streams. Must grater than 50000. (default: 50000)", default=50000, type=port)
-parser.add_argument("--max-port", metavar="port", help="Maximum port in the range for stream manager to start streams. Must less than 65000. (default: 65000)", default=65000, type=port)
+parser.add_argument("-Q", "--port", metavar="port", help="Minimum port in the range to start streams. Must grater than 50000. (default: 50000)", default=50000, type=port)
+parser.add_argument("--min-port", metavar="port", help="Minimum port in the range to start streams. Must grater than 50000. (default: 50000)", default=50000, type=port)
+parser.add_argument("--max-port", metavar="port", help="Maximum port in the range to start streams. Must less than 65000. (default: 65000)", default=65000, type=port)
 
 playeropt = parser.add_argument_group("player options")
-playeropt.add_argument("-p", "--player", metavar="player", help="Command-line for player, default is 'vlc'", default="vlc")
+playeropt.add_argument("-p", "--player", metavar="player", help="Command-line for player, default is 'vlc'", default="default")
 playeropt.add_argument("-q", "--quiet-player", action="store_true", help="Hide all player console output")
+playeropt.add_argument("-x", "--xsplit", action="store_true", help="Show XSplit URLS to open with IP Camera plugin.")
 
 outputopt = parser.add_argument_group("file output options")
 outputopt.add_argument("-o", "--output", metavar="filename", help="Write stream to file instead of playing it")
@@ -89,6 +91,11 @@ def main():
 	logger.set_level(args.loglevel)
 	args.logger = logger
 	args.port = None
+	
+	if args.player == "default" and args.xsplit:
+		args.player = "vlc --sout=#rtp{sdp=rtsp://:{PORT}/} --no-sout-rtp-sap --no-sout-standard-sap --ttl=1 --sout-keep"
+	elif args.player == "default":
+		args.player = "vlc"
 	
 	if args.password:
 		args.password = get_password()

@@ -204,6 +204,8 @@ class StreamHandler():
             self.logger.info("Starting player: {0}", args.player)
             if args.port:
                 self.logger.info("Stream port is: {0}", args.port)
+                if args.xsplit:
+                    self.logger.info("XSplit URL: rtsp://localhost:{0}/\\\\rtsp_transport:udp".format(args.port))
             player = subprocess.Popen(cmd, shell=True, stdout=pout, stderr=perr,
                                       stdin=subprocess.PIPE)
             out = player.stdin

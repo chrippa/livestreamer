@@ -56,26 +56,20 @@ websites listed.
 
 The Manager and XSplit
 ----------------------
-Set your player argument though the config file or command line to:
+Now run Livestreamer with -m to start in manager mode and -x to enable XSplit tweaks.
+
+	livestream -mx
+
+The player will default to this you can adjust this as you wish.
+I would recommend only doing this if you know what you are doing.
 
 	vlc --sout=#rtp{sdp=rtsp://:{PORT}/} --no-sout-rtp-sap --no-sout-standard-sap --ttl=1 --sout-keep
 
-	You can adjust this as you wish only if you know what you are doing.
+To start a stream you can use the following. Use stream --help to see more info.
 
-Now run Livestreamer with -m to start in manager mode.
+	stream url stream
 
-	livestream -m
-
-To start a stream you can use the following. The port is optional.
-
-	stream url stream [port]
-
-In XSplit add the stream using the ip camera source with the url:
-
-	rtsp://localhost:[port]/\\rtsp_transport:udp
-
-	The port is the port listed in the livestreamer command line.
-
+The XSplit URL will be shown in the command line output.
 
 Saving arguments AKA config file
 --------------------------------

@@ -2,10 +2,12 @@ import livestreamer
 from .compat import input, stdout, is_win32
 from .logger import Logger
 from .stream import StreamThread
-from .utils import next_port, check_port, get_password
+from .utils import next_port, check_port, get_password, port
 from prettytable import PrettyTable
 
 import sys, os, argparse, subprocess, cmd
+
+logger = Logger("manager")
 
 class ManagerCli(cmd.Cmd):
 	def __init__(self, args):
@@ -138,7 +140,7 @@ Stream now playbacks in player (default is VLC).
 		playeropt = parser.add_argument_group("player options")
 		playeropt.add_argument("-p", "--player", metavar="player", 
 			help="Command-line for player, default is 'vlc'", default="vlc")
-		playeropt.add_argument("-P", "--port", metavar="port", 
+		playeropt.add_argument("-Q", "--port", metavar="port", type=port,
 			help="The port to use if the player command contains '{PORT}'", default=next_port(self.args))
 
 		outputopt = parser.add_argument_group("file output options")
@@ -161,16 +163,19 @@ Stream now playbacks in player (default is VLC).
 			print exampleusage
 			return False
 
+		
+		# Set forced args and copy usable args
 		args.stdout = False
 		args.quiet_player = True
 		args.loglevel = self.args.loglevel
 		args.errorlog = self.args.errorlog
 		args.rtmpdump = self.args.rtmpdump
+		args.xsplit = self.args.xsplit
 		args.player = self.args.player
 	
 		if "{PORT}" in args.player:				
 			if not check_port(args.port):
-				logger.error("The port", str(args.port), "is already in use.")
+				logger.error("The port ({0}) is already in use.", args.port)
 				return False
 
 			# Put the port into the player.
@@ -209,8 +214,6 @@ class Manager():
 		try:
 			args.cmdline = False
 			args.quiet_player = True
-
-			logger = Logger("manager")
 			
 			interpreter = ManagerCli(args)		
 			interpreter.prompt = "livestreamer$ "
