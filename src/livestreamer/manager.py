@@ -172,16 +172,6 @@ Stream now playbacks in player (default is VLC).
 		args.rtmpdump = self.args.rtmpdump
 		args.xsplit = self.args.xsplit
 		args.player = self.args.player
-	
-		if "{PORT}" in args.player:				
-			if not check_port(args.port):
-				logger.error("The port ({0}) is already in use.", args.port)
-				return False
-
-			# Put the port into the player.
-			args.player = args.player.replace("{PORT}", str(args.port))
-		else:
-			args.port = False
 		
 		args.username = self.args.username
 		args.password = self.args.password

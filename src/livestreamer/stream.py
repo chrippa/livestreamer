@@ -1,4 +1,4 @@
-from .utils import urlopen
+from .utils import urlopen, check_port
 from .compat import str, is_win32
 from .logger import Logger
 import livestreamer
@@ -99,6 +99,16 @@ class StreamHandler():
             self.logger = Logger("stream")
             self.logger.set_output(sys.stderr)
             self.logger.set_level(args.loglevel)
+            
+            if "{PORT}" in args.player:                
+                if not check_port(args.port):
+                    self.logger.error("The port ({0}) is already in use.", args.port)
+                    return None
+
+                # Put the port into the player.
+                args.player = args.player.replace("{PORT}", str(args.port))
+            else:
+                args.port = False
 
             try:
                 channel = livestreamer.resolve_url(args)

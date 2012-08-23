@@ -90,7 +90,6 @@ def main():
 
 	logger.set_level(args.loglevel)
 	args.logger = logger
-	args.port = None
 	
 	if args.player == "default" and args.xsplit:
 		args.player = "vlc --sout=#rtp{sdp=rtsp://:{PORT}/} --no-sout-rtp-sap --no-sout-standard-sap --ttl=1 --sout-keep"
