@@ -160,6 +160,13 @@ Stream now playbacks in player (default is VLC).
 		if not args.url:
 			print exampleusage
 			return False
+
+		args.stdout = False
+		args.quiet_player = True
+		args.loglevel = self.args.loglevel
+		args.errorlog = self.args.errorlog
+		args.rtmpdump = self.args.rtmpdump
+		args.player = self.args.player
 	
 		if "{PORT}" in args.player:				
 			if not check_port(args.port):
@@ -170,13 +177,6 @@ Stream now playbacks in player (default is VLC).
 			args.player = args.player.replace("{PORT}", str(args.port))
 		else:
 			args.port = False
-
-		args.stdout = False
-		args.quiet_player = True
-		args.loglevel = self.args.loglevel
-		args.errorlog = self.args.errorlog
-		args.rtmpdump = self.args.rtmpdump
-		args.player = self.args.player
 		
 		args.username = self.args.username
 		args.password = self.args.password
