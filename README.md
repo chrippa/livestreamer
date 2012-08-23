@@ -72,7 +72,7 @@ To start a stream you can use the following. The port is optional.
 
 In XSplit add the stream using the ip camera source with the url:
 
-	rtsp://localhost:[port]/
+	rtsp://localhost:[port]/\\rtsp_transport:udp
 
 	The port is the port listed in the livestreamer command line.
 
