@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 from sys import version_info, platform, prefix
 
-version = "1.1.0"
+version = "2.0.0"
 deps = ["pbs", "PrettyTable"]
 
 # require argparse on Python <2.7 and <3.2
