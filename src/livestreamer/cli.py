@@ -1,7 +1,7 @@
 import sys, os, argparse
 import livestreamer
 from .manager import Manager
-from .utils import port, get_password
+from .utils import port, get_password, config_file_moved
 
 from livestreamer.compat import input, stdout, is_win32
 from livestreamer.logger import Logger
@@ -52,7 +52,12 @@ pluginopt.add_argument("-j", "--jtv-cookie", metavar="cookie", help="Specify Jus
 pluginopt.add_argument("-U", "--username", metavar="username", help="Authentication username used for GomTV plugin.")
 pluginopt.add_argument("-P", "--password", action="store_true", help="Authentication password used for GomTV plugin. You will be prompted to type this.")
 
-RCFILE = os.path.expanduser("~/.livestreamerrc")
+if is_win32:
+	pathPrefix = os.environ['APPDATA'] + "\\"
+else:
+	pathPrefix = "~/."
+
+RCFILE = os.path.expanduser(pathPrefix + "livestreamer.conf")
 
 def exit(msg):
 	sys.exit(("error: {0}").format(msg))
@@ -71,6 +76,8 @@ def print_plugins():
 def main():
 	arglist = sys.argv[1:]
 
+	config_file_moved()
+	
 	if os.path.exists(RCFILE):
 		arglist.insert(0, "@" + RCFILE)
 

@@ -79,7 +79,8 @@ In XSplit add the stream using the ip camera source with the url:
 
 Saving arguments AKA config file
 --------------------------------
-Livestreamer can read arguments from the file ~/.livestreamerrc.
+Livestreamer can read arguments from the file ~/.livestreamer.conf on Unix based operating systems
+and %APPDATA%\livestreamer.conf on windows based operating systems.
 A example file:
 
     player=mplayer

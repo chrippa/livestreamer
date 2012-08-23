@@ -97,6 +97,32 @@ def check_port(port):
 	
 def get_password(prompt="Password: "):
 	return getpass.getpass(prompt)
+	
+	
+def config_file_moved():
+	RCFILE = os.path.expanduser("~/.livestreamerrc")
+	if is_win32:
+		pathPrefix = os.environ['APPDATA'] + "\\"
+	else:
+		pathPrefix = "~/."
+	if os.path.exists(RCFILE):
+		print "####################################################################"
+		print "#               Warning the config file has moved!                 #"
+		print "#                                                                  #"
+		print "#  It can now be found at %APPDATA%/livestreamer.conf on windows   #"
+		print "#                     and ~/.livestreamer.conf on a unix based OS  #"
+		print "#                                                                  #"
+		print "####################################################################"
+		print "                                                                    "
+		while True:
+			a = raw_input("Would you like to move your old config file to the new location? (y/n) ").lower()
+			if "y" in a:
+				os.rename(RCFILE, pathPrefix + "livestreamer.conf")
+				return True
+			elif "n" in a:
+				return False
+	
 
 __all__ = ["ArgumentParser", "urlopen", "urlget", "swfverify", 
-			"verifyjson", "port", "next_port", "check_port", "get_password"]
+			"verifyjson", "port", "next_port", "check_port", "get_password",
+			"config_file_moved"]
