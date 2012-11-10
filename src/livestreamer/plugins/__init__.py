@@ -1,4 +1,5 @@
 from livestreamer.options import Options
+import sys
 
 SpecialQualityWeights = {
     "live": 1080,
@@ -61,20 +62,27 @@ class Plugin(object):
             The value is a :class:`Stream` object.
 
             The stream with key *best* is a reference to the stream most likely
-            to be of highest quality.
+            to be of highest quality and vice versa for *worst*.
         """
 
         streams = self._get_streams()
 
         best = (0, None)
+        worst = (sys.maxint, None)
         for name, stream in streams.items():
+            if name[-4:] == '_hls': name = name[:-4]
             weight = qualityweight(name)
 
             if weight > best[0]:
                 best = (weight, stream)
 
+            if weight < worst[0]:
+                worst = (weight, stream)
+
         if best[1] is not None:
             streams["best"] = best[1]
+        if worst[1] is not None:
+            streams["worst"] = worst[1]
 
         return streams
 

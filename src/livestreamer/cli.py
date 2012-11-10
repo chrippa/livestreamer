@@ -30,7 +30,7 @@ parser = ArgumentParser(description="CLI program that launches streams from vari
                         epilog=exampleusage, add_help=False)
 
 parser.add_argument("url", help="URL to stream", nargs="?")
-parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available",
+parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available, 'worst' for lowest",
                     nargs="?")
 
 parser.add_argument("-h", "--help", action="store_true",
