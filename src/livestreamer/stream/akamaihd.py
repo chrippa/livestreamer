@@ -81,6 +81,9 @@ class AkamaiHDStream(Stream):
         self.swf = swf
         self.seek = seek
 
+    def cmd(self):
+        return 'ahs\n' + '{0}\n{1}'.format(self.host, self.streamname)
+
     def open(self):
         self.guid = cache_bust_string(12)
         self.islive = None

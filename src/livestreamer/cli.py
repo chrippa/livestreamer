@@ -63,7 +63,7 @@ pluginopt = parser.add_argument_group("plugin options")
 pluginopt.add_argument("--plugin-dirs", metavar="directory",
                        help="Attempts to load plugins from these directories. Multiple directories can be used by separating them with a ;.")
 pluginopt.add_argument("-c", "--cmdline", action="store_true",
-                       help="Print command-line used internally to play stream, this may not be available on all streams")
+                       help="Print arguments used internally to play stream")
 pluginopt.add_argument("-e", "--errorlog", action="store_true",
                        help="Log possible errors from internal command-line to a temporary file, use when debugging")
 pluginopt.add_argument("-r", "--rtmpdump", metavar="path",
@@ -268,15 +268,12 @@ def handle_url(args):
             stream = streams[args.stream]
 
             if args.cmdline:
-                if isinstance(stream, StreamProcess):
                     try:
                         cmdline = stream.cmdline()
                     except StreamError as err:
                         exit(err)
 
                     msg(cmdline)
-                else:
-                    exit("Stream does not use a command-line")
             else:
                 output_stream(stream, args)
         else:

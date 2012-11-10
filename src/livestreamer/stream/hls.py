@@ -83,6 +83,9 @@ class HLSStream(Stream):
         self.url = url
         self.logger = session.logger.new_module("stream.hls")
 
+    def cmd(self):
+        return 'hls\n' + self.url
+
     def open(self):
         self.playlist = {}
         self.playlist_reload_time = 0

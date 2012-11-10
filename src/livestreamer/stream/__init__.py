@@ -26,6 +26,9 @@ class Stream(object):
         """
         raise NotImplementedError
 
+    def cmdline(self):
+        return self.cmd()
+
 class StreamProcess(Stream):
     def __init__(self, session, params={}, timeout=30):
         Stream.__init__(self, session)
@@ -51,7 +54,7 @@ class StreamProcess(Stream):
     def cmdline(self):
         cmd = self._check_cmd()
 
-        return str(cmd.bake(**self.params))
+        return 'rtmp\n' + '\n'.join(str(x) for x in sorted(cmd._extract_call_args(self.params)[1].values()))
 
     def open(self):
         cmd = self._check_cmd()

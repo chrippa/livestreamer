@@ -8,10 +8,12 @@ class HTTPStream(Stream):
         self.url = url
         self.args = args
 
+    def cmd(self):
+        return self.url
+        
     def open(self):
         res = urlget(self.url, prefetch=False,
                      exception=StreamError,
                      **self.args)
 
         return res.raw
-
