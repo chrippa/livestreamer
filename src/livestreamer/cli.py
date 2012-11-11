@@ -6,7 +6,7 @@ import subprocess
 
 from livestreamer import *
 from livestreamer.compat import input, stdout, file, is_win32
-from livestreamer.stream import StreamProcess
+from livestreamer.stream import StreamProcess, StreamProt
 from livestreamer.utils import ArgumentParser, NamedPipe
 
 exampleusage = """
@@ -41,6 +41,7 @@ parser.add_argument("-u", "--plugins", action="store_true",
 parser.add_argument("-l", "--loglevel", metavar="level",
                     help="Set log level, valid levels: none, error, warning, info, debug",
                     default="info")
+parser.add_argument("-P", "--prot", metavar="prot", help="Stream protocol 'ahs', 'hls', 'http' or 'rtmp'.")
 
 playeropt = parser.add_argument_group("player options")
 playeropt.add_argument("-p", "--player", metavar="player",
@@ -251,8 +252,20 @@ def handle_url(args):
 
     logger.info("Found matching plugin {0} for URL {1}", channel.module, args.url)
 
+    if args.prot:
+        if args.prot == "ahs":
+            args.prot = StreamProt.AHS
+        elif args.prot == "hls":
+            args.prot = StreamProt.HLS
+        elif args.prot == "http":
+            args.prot = StreamProt.HTTP
+        elif args.prot == "rtmp":
+            args.prot = StreamProt.RTMP
+        else:
+            args.prot = None
+
     try:
-        streams = channel.get_streams()
+        streams = channel.get_streams(args.prot)
     except (StreamError, PluginError) as err:
         exit(str(err))
 
@@ -264,6 +277,7 @@ def handle_url(args):
     validstreams = (", ").join(keys)
 
     if args.stream:
+
         if args.stream in streams:
             stream = streams[args.stream]
 

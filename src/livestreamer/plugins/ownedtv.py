@@ -72,7 +72,8 @@ class OwnedTV(Plugin):
         else:
             return "".join(res)
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
+    
         (liveid, swfurl) = self._get_channel_info(self.url)
 
         if not (liveid and swfurl):

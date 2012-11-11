@@ -1,7 +1,7 @@
 from livestreamer.compat import str, bytes
 from livestreamer.options import Options
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError
-from livestreamer.stream import RTMPStream, HLSStream
+from livestreamer.stream import RTMPStream, HLSStream, StreamProt
 from livestreamer.utils import urlget, urlresolve, verifyjson
 
 from hashlib import sha1
@@ -180,34 +180,36 @@ class JustinTV(Plugin):
 
         return playlist
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         self.channelname = self._get_channel_name(self.url)
 
         if not self.channelname:
             raise NoStreamsError(self.url)
 
         streams = {}
-
-        if RTMPStream.is_usable(self.session):
-            try:
-                rtmpstreams = self._get_rtmp_streams()
-                streams.update(rtmpstreams)
-            except PluginError as err:
-                self.logger.error("Error when fetching RTMP stream info: {0}", str(err))
-        else:
-            self.logger.warning("rtmpdump is not usable, only HLS streams will be available")
-
-        try:
-            hlsstreams = self._get_hls_streams()
-            if len(streams) > 0:
-                hlssuffix = "_hls"
+        
+        if prot in (None, StreamProt.RTMP):
+            if RTMPStream.is_usable(self.session):
+                try:
+                    rtmpstreams = self._get_rtmp_streams()
+                    streams.update(rtmpstreams)
+                except PluginError as err:
+                    self.logger.error("Error when fetching RTMP stream info: {0}", str(err))
             else:
-                hlssuffix = ""
+                self.logger.warning("rtmpdump is not usable, only HLS streams will be available")
 
-            for name, stream in hlsstreams.items():
-                streams[name + hlssuffix] = stream
-        except PluginError as err:
-            self.logger.error("Error when fetching HLS stream info: {0}", str(err))
+        if prot in (None, StreamProt.HLS):
+            try:
+                hlsstreams = self._get_hls_streams()
+                if len(streams) > 0:
+                    hlssuffix = "_hls"
+                else:
+                    hlssuffix = ""
+
+                for name, stream in hlsstreams.items():
+                    streams[name + hlssuffix] = stream
+            except PluginError as err:
+                self.logger.error("Error when fetching HLS stream info: {0}", str(err))
 
         return streams
 

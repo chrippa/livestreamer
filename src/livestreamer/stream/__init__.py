@@ -6,6 +6,12 @@ import os
 import time
 import tempfile
 
+class StreamProt:
+    AHS=0
+    HLS=1
+    HTTP=2
+    RTMP=3
+
 class StreamError(Exception):
     pass
 

@@ -65,7 +65,7 @@ class GomTV(Plugin):
 
         Plugin.__init__(self, url)
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         self.rsession = requests.session(prefetch=True)
 
         options = self.options

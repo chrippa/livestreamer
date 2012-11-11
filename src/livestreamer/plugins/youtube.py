@@ -54,7 +54,7 @@ class Youtube(Plugin):
 
         return formats
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         info = self._get_stream_info(self.url)
 
         if not info:
