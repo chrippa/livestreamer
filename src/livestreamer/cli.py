@@ -6,7 +6,7 @@ import subprocess
 
 from livestreamer import *
 from livestreamer.compat import input, stdout, file, is_win32
-from livestreamer.stream import StreamProcess
+from livestreamer.stream import StreamProcess, RTMPStream
 from livestreamer.utils import ArgumentParser, NamedPipe
 
 exampleusage = """
@@ -58,6 +58,8 @@ outputopt.add_argument("-f", "--force", action="store_true",
                        help="Always write to file even if it already exists")
 outputopt.add_argument("-O", "--stdout", action="store_true",
                        help="Write stream to stdout instead of playing it")
+outputopt.add_argument("-S", "--socks", metavar="host:port",
+                       help="For rtmpdump streams, use host as a SOCKS proxy")
 
 pluginopt = parser.add_argument_group("plugin options")
 pluginopt.add_argument("--plugin-dirs", metavar="directory",
@@ -266,6 +268,9 @@ def handle_url(args):
     if args.stream:
         if args.stream in streams:
             stream = streams[args.stream]
+
+            if args.socks and isinstance(stream, RTMPStream):
+                stream.params['socks'] = args.socks
 
             if args.cmdline:
                 if isinstance(stream, StreamProcess):
