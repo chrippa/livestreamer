@@ -58,8 +58,6 @@ outputopt.add_argument("-f", "--force", action="store_true",
                        help="Always write to file even if it already exists")
 outputopt.add_argument("-O", "--stdout", action="store_true",
                        help="Write stream to stdout instead of playing it")
-outputopt.add_argument("-S", "--socks", metavar="host:port",
-                       help="For rtmpdump streams, use host as a SOCKS proxy")
 
 pluginopt = parser.add_argument_group("plugin options")
 pluginopt.add_argument("--plugin-dirs", metavar="directory",
@@ -79,6 +77,8 @@ pluginopt.add_argument("--gomtv-username", metavar="username",
 pluginopt.add_argument("--gomtv-password", metavar="password",
                        help="Specify GOMTV password to allow access to streams (If left blank you will be prompted)",
                        nargs="?", const=True, default=None)
+pluginopt.add_argument("-S", "--socks", metavar="host:port",
+                       help="For rtmpdump streams, use host as a SOCKS proxy")
 
 if is_win32:
     RCFILE = os.path.join(os.environ["APPDATA"], "livestreamer", "livestreamerrc")
