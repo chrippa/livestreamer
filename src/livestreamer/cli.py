@@ -6,7 +6,7 @@ import subprocess
 
 from livestreamer import *
 from livestreamer.compat import input, stdout, file, is_win32
-from livestreamer.stream import StreamProcess
+from livestreamer.stream import StreamProcess, RTMPStream
 from livestreamer.utils import ArgumentParser, NamedPipe
 
 exampleusage = """
@@ -81,6 +81,8 @@ pluginopt.add_argument("--gomtv-username", metavar="username",
 pluginopt.add_argument("--gomtv-password", metavar="password",
                        help="Specify GOMTV password to allow access to streams (If left blank you will be prompted)",
                        nargs="?", const=True, default=None)
+pluginopt.add_argument("-S", "--socks", metavar="host:port",
+                       help="For rtmpdump streams, use host as a SOCKS proxy")
 
 if is_win32:
     RCFILE = os.path.join(os.environ["APPDATA"], "livestreamer", "livestreamerrc")
@@ -270,6 +272,9 @@ def handle_url(args):
     if args.stream:
         if args.stream in streams:
             stream = streams[args.stream]
+
+            if args.socks and isinstance(stream, RTMPStream):
+                stream.params['socks'] = args.socks
 
             if args.cmdline:
                 if isinstance(stream, StreamProcess):
