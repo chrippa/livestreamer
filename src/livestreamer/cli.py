@@ -272,9 +272,15 @@ def handle_url(args):
     if len(streams) == 0:
         exit(("No streams found on this URL: {0}").format(args.url))
 
-    keys = list(streams.keys())
-    keys.sort()
-    validstreams = (", ").join(keys)
+    # stream list
+    validstreams = ''
+    for name, stream in sorted(streams.items()):
+        if name in ('best', 'worst'): continue
+        validstreams += name
+        if stream is streams['best']: validstreams += ' (best)'
+        if stream is streams['worst']: validstreams += ' (worst)'
+        validstreams += ', '
+    validstreams = validstreams[:-2]
 
     if args.stream:
 
