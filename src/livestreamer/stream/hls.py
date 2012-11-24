@@ -217,15 +217,14 @@ class HLSStream(Stream):
                 try:
                     res = urlget(url, prefetch=False,
                                  exception=IOError)
+                    self.playlist[entry["sequence"]] = res.raw
                 except IOError as err:
+                    self.playlist[entry["sequence"]] = None
                     self.logger.error("Failed to open segment: {0}", str(err))
-                    continue
-
-                self.playlist[entry["sequence"]] = res.raw
 
                 if entry["tag"][0] == "EXTINF":
                     duration = entry["tag"][1][0]
-                    self.playlist_minimal_reload_time = duration
+                    self.playlist_minimal_reload_time = duration * 0.5
 
     def _relative_url(self, url):
         if not url.startswith("http"):
