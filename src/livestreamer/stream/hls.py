@@ -219,7 +219,6 @@ class HLSStream(Stream):
                                  exception=IOError)
                     self.playlist[entry["sequence"]] = res.raw
                 except IOError as err:
-                    self.playlist[entry["sequence"]] = None
                     self.logger.error("Failed to open segment: {0}", str(err))
 
                 if entry["tag"][0] == "EXTINF":
