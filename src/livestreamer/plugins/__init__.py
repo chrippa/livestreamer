@@ -1,7 +1,6 @@
 from livestreamer.options import Options
-import sys
 
-import re
+import re, sys
 
 SpecialQualityWeights = {
     "live": 1080,
@@ -76,7 +75,7 @@ class Plugin(object):
         streams = self._get_streams(prot)
 
         best = (0, None)
-        worst = (sys.maxint, None)
+        worst = (sys.maxsize, None)
         for name, stream in streams.items():
             if name[-4:] == '_hls': name = name[:-4]
             weight = qualityweight(name)
