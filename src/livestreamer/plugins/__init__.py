@@ -15,6 +15,9 @@ SpecialQualityWeights = {
 }
 
 def qualityweight(quality):
+    # remove protocol suffix
+    if quality[-4:] == '_hls': quality = quality[:-4]
+
     if quality in SpecialQualityWeights:
         return SpecialQualityWeights[quality]
 
@@ -77,7 +80,6 @@ class Plugin(object):
         best = (0, None)
         worst = (sys.maxsize, None)
         for name, stream in streams.items():
-            if name[-4:] == '_hls': name = name[:-4]
             weight = qualityweight(name)
 
             if weight > best[0]:
