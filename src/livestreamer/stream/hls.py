@@ -128,8 +128,8 @@ class HLSStream(Stream):
         if elapsed > self.playlist_minimal_reload_time:
             try:
                 self._reload_playlist()
-            except IOError:
-                pass
+            except IOError as err:
+                self.logger.error("Failed to reload playlist: {0}", str(err))
 
         if not self.sequence in self.playlist:
             if self.playlist_end:
@@ -195,7 +195,11 @@ class HLSStream(Stream):
         self.entries = entries
 
         if self.sequence == 0:
-            self.sequence = sequence
+            totalentries = len(entries)
+            if totalentries > 3:
+                self.sequence = sequence + (totalentries - 3)
+            else:
+                self.sequence = sequence
 
         self.playlist_reload_time = time()
 
@@ -206,11 +210,19 @@ class HLSStream(Stream):
             if entry["sequence"] > maxseq:
                 break
 
+            if entry["sequence"] < self.sequence:
+                continue
+
             if not entry["sequence"] in self.playlist:
                 url = self._relative_url(entry["url"])
                 self.logger.debug("Opening fd: {0}", url)
-                res = urlget(url, prefetch=False,
-                             exception=IOError)
+
+                try:
+                    res = urlget(url, prefetch=False,
+                                 exception=IOError)
+                except IOError as err:
+                    self.logger.error("Failed to open segment: {0}", str(err))
+                    continue
 
                 self.playlist[entry["sequence"]] = res.raw
 
@@ -220,7 +232,7 @@ class HLSStream(Stream):
 
     def _relative_url(self, url):
         if not url.startswith("http"):
-            return "{0}/{1}".format(os.path.dirname(self.url), url)
+            return urljoin(self.url, url)
         else:
             return url
 
@@ -249,12 +261,16 @@ class HLSStream(Stream):
             elif "RESOLUTION" in value:
                 quality = value["RESOLUTION"].split("x")[1] + "p"
             elif "BANDWIDTH" in value:
-                quality = str(int(int(value["BANDWIDTH"]) / 1000)) + "k"
+                bw = int(value["BANDWIDTH"])
+
+                if bw > 1000:
+                    quality = str(int(bw/1000.0)) + "k"
+                else:
+                    quality = str(bw/1000.0) + "k"
             else:
                 continue
 
             stream = HLSStream(session, entry["url"])
-
             streams[quality] = stream
 
         return streams

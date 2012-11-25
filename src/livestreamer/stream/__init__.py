@@ -1,6 +1,7 @@
 from ..compat import str, sh, pbs_compat
 from ..utils import RingBuffer
 from threading import Lock
+from distutils.version import LooseVersion
 
 import os
 import time
@@ -41,13 +42,16 @@ class StreamProcess(Stream):
 
         self.params = params
         self.params["_bg"] = True
-        self.params["_err"] = open(os.devnull, "wb")
         self.errorlog = self.session.options.get("errorlog")
 
         if not pbs_compat:
             self.fd = None
             self.timeout = timeout
             self.params["_out_bufsize"] = 8192
+
+            if LooseVersion(sh.__version__) >= LooseVersion("1.07"):
+                self.params["_no_out"] = True
+                self.params["_no_pipe"] = True
 
     def _check_cmd(self):
         try:
@@ -76,6 +80,8 @@ class StreamProcess(Stream):
             tmpfile = tempfile.NamedTemporaryFile(prefix="livestreamer",
                                                   suffix=".err", delete=False)
             self.params["_err"] = tmpfile
+        else:
+            self.params["_err"] = open(os.devnull, "wb")
 
         if not pbs_compat:
             self.fd = RingBuffer()
@@ -104,11 +110,11 @@ class StreamProcess(Stream):
         else:
             return self
 
-    def read(self, size=-1):
+    def read(self, size=0):
         if not self.fd:
             return b""
 
-        while self.fd.length == 0 and self.process_alive:
+        while self.fd.length < size and self.process_alive:
             elapsed_since_read = time.time() - self.last_data_time
 
             if elapsed_since_read > self.timeout:

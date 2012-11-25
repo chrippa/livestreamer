@@ -4,16 +4,17 @@ Livestreamer is a CLI program that launches live streams from various streaming
 services in a custom video player and also a Python library that allows you to
 interact with the stream data in your own application.
 
-Current release: **1.3.2** (2012-10-03)
+Current release: **1.4** (2012-11-23). See CHANGELOG for release notes.
 
 Currently includes plugins for these sites:
 
-* GOMTV.net
-* Justin.tv/Twitch.tv
-* Livestream.com
-* Ongamenet.com
-* Own3d.tv
-* SVTPlay
+* Dailymotion
+* GOMTV.net (live and VOD)
+* livestream.com and new.livestream.com
+* ongamenet.com
+* own3D.tv
+* SVTPlay (live and VOD)
+* Twitch/Justin.tv
 * UStream
 * YouTube
 
@@ -56,7 +57,7 @@ Installing (Windows - Installer)
 2. Once installed, open  %APPDATA%\livestreamer\livestreamerrc in a text editor and make sure everything is correct
 3. Use livestreamer from command prompt
 
-*Note!* Installer has only been tested on Windows 7 (x64) as of now. Also, if you have previously installed manually you may need to remove livestreamer.exe from PYTHONPATH\Scripts.
+*Note!* If you have previously installed manually you may need to remove livestreamer.exe from PYTHONPATH\Scripts.
 
 
 Installing (Windows - Manual install)
@@ -76,7 +77,7 @@ Installing (Windows - Manual install)
 
    **Git version** Open a command prompt and change directory to livestreamer source, then run:
 
-       python setup.py install
+        python setup.py install
 
     This should install any missing Python dependencies automatically if they are missing.
 
@@ -84,6 +85,17 @@ Installing (Windows - Manual install)
 Using
 -----
     $ livestreamer --help
+
+
+Saving arguments AKA config file
+--------------------------------
+Livestreamer can read arguments from the file ~/.livestreamerrc (POSIX) or %APPDATA%\livestreamer\livestreamerrc (Windows).
+A example file:
+
+    player=mplayer -cache 2048
+    gomtv-username=username
+    gomtv-password=password
+
 
 Plugin specific usage
 ---------------------
@@ -114,15 +126,20 @@ VLC version 2.0.1 and 2.0.2 contains a bug that prevents it from reading data fr
 This has been fixed in version 2.0.3.
 
 
-Saving arguments AKA config file
---------------------------------
-Livestreamer can read arguments from the file ~/.livestreamerrc (POSIX) or %APPDATA%\livestreamer\livestreamerrc (Windows).
-A example file:
+**Streams are buffering/lagging**
 
-    player=mplayer
-    gomtv-username=username
-    gomtv-password=password
+By default most players do not cache the input from stdin, here is a few command arguments you can pass to some common players:
 
+MPlayer
+
+    mplayer --cache <kbytes> (between 1024 and 8192 is recommended)
+
+
+VLC
+
+    vlc --file-caching <milliseconds> (between 1000 and 10000 is recommended)
+
+These arguments can be used by passing --player to livestreamer.
 
 Using livestreamer as a library
 -------------------------------

@@ -45,8 +45,8 @@ parser.add_argument("-P", "--prot", metavar="prot", help="Stream protocol 'ahs',
 
 playeropt = parser.add_argument_group("player options")
 playeropt.add_argument("-p", "--player", metavar="player",
-                       help="Command-line for player, default is 'vlc'",
-                       default="vlc")
+                       help="Command-line for player, default is 'vlc --file-caching=5000'",
+                       default="vlc --file-caching=5000")
 playeropt.add_argument("-q", "--quiet-player", action="store_true",
                        help="Hide all player console output")
 playeropt.add_argument("-n", "--fifo", action="store_true",
@@ -60,15 +60,19 @@ outputopt.add_argument("-f", "--force", action="store_true",
 outputopt.add_argument("-O", "--stdout", action="store_true",
                        help="Write stream to stdout instead of playing it")
 
+streamopt = parser.add_argument_group("stream options")
+streamopt.add_argument("-c", "--cmdline", action="store_true",
+                       help="Print arguments used internally to play stream")
+streamopt.add_argument("-e", "--errorlog", action="store_true",
+                       help="Log possible errors from internal command-line to a temporary file, use when debugging")
+streamopt.add_argument("-r", "--rtmpdump", metavar="path",
+                       help="Specify location of rtmpdump executable, eg. /usr/local/bin/rtmpdump")
+streamopt.add_argument("--rtmpdump-proxy", metavar="host:port",
+                       help="Specify a proxy (SOCKS) that rtmpdump will use")
+
 pluginopt = parser.add_argument_group("plugin options")
 pluginopt.add_argument("--plugin-dirs", metavar="directory",
                        help="Attempts to load plugins from these directories. Multiple directories can be used by separating them with a ;.")
-pluginopt.add_argument("-c", "--cmdline", action="store_true",
-                       help="Print arguments used internally to play stream")
-pluginopt.add_argument("-e", "--errorlog", action="store_true",
-                       help="Log possible errors from internal command-line to a temporary file, use when debugging")
-pluginopt.add_argument("-r", "--rtmpdump", metavar="path",
-                       help="Specify location of rtmpdump executable, eg. /usr/local/bin/rtmpdump")
 pluginopt.add_argument("--jtv-cookie", metavar="cookie",
                        help="Specify JustinTV cookie to allow access to subscription channels")
 pluginopt.add_argument("--gomtv-cookie", metavar="cookie",
@@ -84,8 +88,9 @@ if is_win32:
 else:
     RCFILE = os.path.expanduser("~/.livestreamerrc")
 
-def exit(msg):
-    sys.exit(("error: {0}").format(msg))
+def exit(*args, **kw):
+    logger.error(*args, **kw)
+    sys.exit()
 
 def msg(msg):
     msg_output.write(msg + "\n")
@@ -148,30 +153,33 @@ def check_output(output, force):
     try:
         out = open(output, "wb")
     except IOError as err:
-        exit(("Failed to open file {0} - {1}").format(output, err))
+        exit("Failed to open file {0} - {1}", output, err)
 
     return out
 
-def output_stream(stream, args):
+def output_stream(stream, streamname, args):
     progress = False
     out = None
     player = None
 
-    logger.info("Opening stream: {0}", args.stream)
+    logger.info("Opening stream: {0}", streamname)
 
     try:
         fd = stream.open()
     except StreamError as err:
-        exit(("Could not open stream: {0}").format(err))
+        logger.error("Could not open stream: {0}", err)
+        return
 
     logger.debug("Pre-buffering 8192 bytes")
     try:
         prebuffer = fd.read(8192)
-    except IOError:
-        exit("Failed to read data from stream")
+    except IOError as err:
+        logger.error("Failed to read data from stream: {0}", str(err))
+        return
 
     if len(prebuffer) == 0:
-        exit("Failed to read data from stream")
+        logger.error("Failed to read data from stream")
+        return
 
     if args.output:
         if args.output == "-":
@@ -190,7 +198,7 @@ def output_stream(stream, args):
             try:
                 out = NamedPipe(pipename)
             except IOError as err:
-                exit(("Failed to create pipe: {0}").format(err))
+                exit("Failed to create pipe: {0}", err)
 
             cmd = args.player + " " + out.path
             pin = sys.stdin
@@ -213,7 +221,7 @@ def output_stream(stream, args):
             try:
                 out.open("wb")
             except IOError as err:
-                exit(("Failed to open pipe {0} - {1}").format(pipename, err))
+                exit("Failed to open pipe {0} - {1}", pipename, err)
         else:
             out = player.stdin
 
@@ -225,7 +233,11 @@ def output_stream(stream, args):
         msvcrt.setmode(out.fileno(), os.O_BINARY)
 
     logger.debug("Writing stream to output")
-    out.write(prebuffer)
+
+    try:
+        out.write(prebuffer)
+    except IOError as err:
+        exit("Error when writing to output: {0}", str(err))
 
     try:
         write_stream(fd, out, progress, player)
@@ -244,11 +256,43 @@ def output_stream(stream, args):
         except:
             pass
 
+    return True
+
+def handle_stream(args, streams):
+    streamname = args.stream
+    stream = streams[streamname]
+
+    if args.cmdline:
+        try:
+            cmdline = stream.cmdline()
+        except StreamError as err:
+            exit(err)
+
+        msg(cmdline)
+    else:
+        success = False
+        altcount = 1
+
+        while not success:
+            success = output_stream(stream, streamname, args)
+
+            if altcount == 1:
+                streamname = args.stream + "_alt"
+            else:
+                streamname = args.stream + "_alt{0}".format(altcount)
+
+            if streamname in streams:
+                stream = streams[streamname]
+            else:
+                break
+
+            altcount += 1
+
 def handle_url(args):
     try:
         channel = livestreamer.resolve_url(args.url)
     except NoPluginError:
-        exit(("No plugin can handle URL: {0}").format(args.url))
+        exit("No plugin can handle URL: {0}", args.url)
 
     logger.info("Found matching plugin {0} for URL {1}", channel.module, args.url)
 
@@ -270,7 +314,7 @@ def handle_url(args):
         exit(str(err))
 
     if len(streams) == 0:
-        exit(("No streams found on this URL: {0}").format(args.url))
+        exit("No streams found on this URL: {0}", args.url)
 
     # stream list
     validstreams = ''
@@ -283,19 +327,13 @@ def handle_url(args):
     validstreams = validstreams[:-2]
 
     if args.stream:
+        if args.stream == "best":
+            for name, stream in streams.items():
+                if stream is streams["best"] and name != "best":
+                    args.stream = name
 
         if args.stream in streams:
-            stream = streams[args.stream]
-
-            if args.cmdline:
-                    try:
-                        cmdline = stream.cmdline()
-                    except StreamError as err:
-                        exit(err)
-
-                    msg(cmdline)
-            else:
-                output_stream(stream, args)
+            handle_stream(args, streams)
         else:
             msg(("Invalid stream quality: {0}").format(args.stream))
             msg(("Valid streams: {0}").format(validstreams))
@@ -314,6 +352,34 @@ def load_plugins(dirs):
         else:
             logger.warning("Plugin directory {0} does not exist!", directory)
 
+def set_options(args):
+    if args.gomtv_username and (args.gomtv_password is None or (len(args.gomtv_password) < 1)):
+        gomtv_password = getpass.getpass("Enter GOMTV password: ")
+    else:
+        gomtv_password = args.gomtv_password
+
+    livestreamer.set_option("errorlog", args.errorlog)
+
+    if args.rtmpdump:
+        livestreamer.set_option("rtmpdump", args.rtmpdump)
+
+    if args.rtmpdump_proxy:
+        livestreamer.set_option("rtmpdump-proxy", args.rtmpdump_proxy)
+
+    if args.jtv_cookie:
+        livestreamer.set_plugin_option("justintv", "cookie", args.jtv_cookie)
+
+    if args.gomtv_cookie:
+        livestreamer.set_plugin_option("gomtv", "cookie", args.gomtv_cookie)
+
+    if args.gomtv_username:
+        livestreamer.set_plugin_option("gomtv", "username", args.gomtv_username)
+
+    if gomtv_password:
+        livestreamer.set_plugin_option("gomtv", "password", gomtv_password)
+
+    livestreamer.set_loglevel(args.loglevel)
+
 def main():
     arglist = sys.argv[1:]
 
@@ -325,18 +391,7 @@ def main():
     if args.stdout or args.output == "-":
         set_msg_output(sys.stderr)
 
-    if args.gomtv_username and (args.gomtv_password is None or (len(args.gomtv_password) < 1)):
-        gomtv_password = getpass.getpass("Enter GOMTV password: ")
-    else:
-        gomtv_password = args.gomtv_password
-
-    livestreamer.set_option("errorlog", args.errorlog)
-    livestreamer.set_option("rtmpdump", args.rtmpdump)
-    livestreamer.set_plugin_option("justintv", "cookie", args.jtv_cookie)
-    livestreamer.set_plugin_option("gomtv", "cookie", args.gomtv_cookie)
-    livestreamer.set_plugin_option("gomtv", "username", args.gomtv_username)
-    livestreamer.set_plugin_option("gomtv", "password", gomtv_password)
-    livestreamer.set_loglevel(args.loglevel)
+    set_options(args)
 
     if args.plugin_dirs:
         load_plugins(args.plugin_dirs)
