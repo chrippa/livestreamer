@@ -22,10 +22,15 @@ class RawRtmp(Plugin):
     def _parseOptions(self):
         options = {}
         optionsURL = self.url.split()
-        options['rtmp'] = optionsURL[0].strip()
+        options["rtmp"] = optionsURL[0].strip()
         for pv in optionsURL[1:]:
-            (param, value) = pv.split("=")
-            options[param.strip()] = value.strip()
+            if pv == "live":
+                options["live"] = True
+            elif pv == "realtime":
+                options["realtime"] = True
+            else:
+                index = pv.find('=')
+                options[pv[:index].strip()] = pv[index+1:].strip()
         return options
 
 
