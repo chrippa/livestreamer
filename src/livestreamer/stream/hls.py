@@ -223,7 +223,7 @@ class HLSStream(Stream):
 
         for i, entry in enumerate(entries):
             entry["sequence"] = sequence + i
-            entry["url"] = self._relative_url(entry["url"])
+            entry["url"] = HLSStream.relative_url(self.url, entry["url"])
 
         if "EXT-X-ENDLIST" in tags:
             self.playlist_end = entries[-1]["sequence"]
@@ -251,9 +251,10 @@ class HLSStream(Stream):
         if not playlistchanged:
             self.playlist_minimal_reload_time /= 2
 
-    def _relative_url(self, url):
+    @classmethod
+    def relative_url(cls, baseUrl, url):
         if not url.startswith("http"):
-            return urljoin(self.url, url)
+            return urljoin(baseUrl, url)
         else:
             return url
 
@@ -291,7 +292,7 @@ class HLSStream(Stream):
             else:
                 continue
 
-            stream = HLSStream(session, entry["url"])
+            stream = HLSStream(session, HLSStream.relative_url(url, entry["url"]))
             streams[quality] = stream
 
         return streams
