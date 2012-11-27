@@ -180,4 +180,4 @@ def absolute_url(baseurl, url):
 
 __all__ = ["ArgumentParser", "NamedPipe", "RingBuffer",
            "urlopen", "urlget", "urlresolve", "swfdecompress",
-           "swfverify", "verifyjson", "absolute_ulr"]
+           "swfverify", "verifyjson", "absolute_url"]
