@@ -6,7 +6,6 @@ import re
 
 class YYCast(Plugin):
     SWFURL = "http://cdn.yycast.com/player/player.swf"
-    PageURL = "http://www.yycast.com"
 
     @classmethod
     def can_handle_url(self, url):
@@ -28,7 +27,7 @@ class YYCast(Plugin):
 
         streams["live"] = RTMPStream(self.session, {
             "rtmp": rtmp,
-            "pageUrl": self.PageURL,
+            "pageUrl": self.url,
             "swfVfy": self.SWFURL,
             "playpath" : playpath,
             "live": True
