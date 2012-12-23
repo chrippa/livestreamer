@@ -1,10 +1,9 @@
 from livestreamer.compat import bytes, str
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError
 from livestreamer.stream import RTMPStream
-from livestreamer.utils import urlget
+from livestreamer.utils import urlget, res_xml, get_node_text
 
 import re
-import xml.dom.minidom
 
 class OwnedTV(Plugin):
     ConfigURL = "http://www.own3d.tv/livecfg/{0}"
@@ -49,18 +48,16 @@ class OwnedTV(Plugin):
     def _is_live(self, liveid):
         res = urlget(self.StatusAPIURL.format(liveid))
 
-        try:
-            dom = xml.dom.minidom.parseString(res.text)
-        except Exception as err:
-            raise PluginError(("Unable to parse status XML: {0})").format(err))
+        dom = res_xml(res, "status XML")
 
         live = dom.getElementsByTagName("live_is_live")
 
         if len(live) > 0:
-            return self._get_node_text(live[0]) == "1"
+            return get_node_text(live[0]) == "1"
 
         return False
 
+<<<<<<< HEAD
     def _get_node_text(self, element):
         res = []
         for node in element.childNodes:
@@ -74,6 +71,9 @@ class OwnedTV(Plugin):
 
     def _get_streams(self, prot):
     
+=======
+    def _get_streams(self):
+>>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
         (liveid, swfurl) = self._get_channel_info(self.url)
 
         if not (liveid and swfurl):
@@ -85,10 +85,7 @@ class OwnedTV(Plugin):
         self.logger.debug("Fetching stream info")
         res = urlget(self.ConfigURL.format(liveid))
 
-        try:
-            dom = xml.dom.minidom.parseString(res.text)
-        except Exception as err:
-            raise PluginError(("Unable to parse config XML: {0})").format(err))
+        dom = res_xml(res, "config XML")
 
         streams = {}
         channels = dom.getElementsByTagName("channels")[0]

@@ -1,7 +1,12 @@
 from livestreamer.compat import str
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError
+<<<<<<< HEAD
 from livestreamer.stream import RTMPStream, HLSStream, StreamProt
 from livestreamer.utils import urlget, verifyjson
+=======
+from livestreamer.stream import RTMPStream, HLSStream
+from livestreamer.utils import urlget, verifyjson, res_json
+>>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
 import re
 
@@ -16,12 +21,13 @@ class SVTPlay(Plugin):
     def _get_streams(self, prot):
         self.logger.debug("Fetching stream info")
         res = urlget(self.url, params=dict(output="json"))
+        json = res_json(res)
 
-        if res.json is None:
-            raise PluginError("No JSON data in stream info")
+        if not isinstance(json, dict):
+            raise PluginError("Invalid JSON response")
 
         streams = {}
-        video = verifyjson(res.json, "video")
+        video = verifyjson(json, "video")
         videos = verifyjson(video, "videoReferences")
 
         for video in videos:

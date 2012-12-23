@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
-from setuptools import setup, find_packages
+from setuptools import setup
 from sys import version_info
 from os import name as os_name
-import os
 
-version = "1.4"
-deps = ["requests>=0.12.1"]
+version = "1.4.1"
+deps = ["requests>=1.0,<2.0"]
 packages = ["livestreamer",
             "livestreamer.stream",
             "livestreamer.plugins",
@@ -21,7 +20,7 @@ if (version_info[0] == 2 and version_info[1] < 7) or \
 if os_name == "nt":
     deps.append("pbs")
 else:
-    deps.append("sh")
+    deps.append("sh>=1.07,<2.0")
 
 setup(name="livestreamer",
       version=version,
@@ -31,9 +30,9 @@ setup(name="livestreamer",
       author_email="chrippa@tanuki.se",
       license="BSD",
       packages=packages,
-      package_dir={'': 'src'},
+      package_dir={ "": "src" },
       entry_points={
-          "console_scripts": ['livestreamer=livestreamer.cli:main']
+          "console_scripts": ["livestreamer=livestreamer.cli:main"]
       },
       install_requires=deps,
       test_suite="tests",
@@ -43,5 +42,6 @@ setup(name="livestreamer",
                    "Development Status :: 5 - Production/Stable",
                    "Topic :: Internet :: WWW/HTTP",
                    "Topic :: Multimedia :: Sound/Audio",
+                   "Topic :: Multimedia :: Video",
                    "Topic :: Utilities"]
 )

@@ -1,20 +1,24 @@
 from ..compat import str, sh, pbs_compat
 from ..utils import RingBuffer
-from threading import Lock
 from distutils.version import LooseVersion
 
+import io
 import os
 import time
 import tempfile
 
+<<<<<<< HEAD
 class StreamProt:
     AHS=0
     HLS=1
     HTTP=2
     RTMP=3
+=======
+>>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
 class StreamError(Exception):
     pass
+
 
 class Stream(object):
     """
@@ -33,25 +37,117 @@ class Stream(object):
         """
         raise NotImplementedError
 
+<<<<<<< HEAD
     def cmdline(self):
         return self.cmd()
 
 class StreamProcess(Stream):
     def __init__(self, session, params={}, timeout=30):
         Stream.__init__(self, session)
+=======
+>>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
+class StreamIOWrapper(io.IOBase):
+    """Wraps file-like objects that are not inheriting from IOBase"""
+
+    def __init__(self, fd):
+        self.fd = fd
+
+    def read(self, size=-1):
+        return self.fd.read(size)
+
+    def close(self):
+        if hasattr(self.fd, "close"):
+            self.fd.close()
+
+
+class StreamProcessIO(io.IOBase):
+    def __init__(self, session, cmd, params, timeout=30):
+        self.cmd = cmd
         self.params = params
-        self.params["_bg"] = True
+        self.session = session
+        self.timeout = timeout
+
+        self.fd = RingBuffer(self.session.get_option("ringbuffer-size"))
+        self.params["_out_bufsize"] = 8192
+
+        if LooseVersion(sh.__version__) >= LooseVersion("1.07"):
+            self.params["_no_out"] = True
+            self.params["_no_pipe"] = True
+
+    def open(self):
+        def read_callback(data):
+            self.fd.write(data)
+
+        self.params["_out"] = read_callback
+        self.stream = self.cmd(**self.params)
+        self.process = self.stream.process
+
+        return self
+
+    def read(self, size=0):
+        if not self.fd:
+            return b""
+
+        return self.fd.read(size, block=self.process.alive,
+                            timeout=self.timeout)
+
+    def close(self):
+        try:
+            self.process.kill()
+        except:
+            pass
+
+
+class StreamProcess(Stream):
+    def __init__(self, session, params={}, timeout=30):
+        Stream.__init__(self, session)
+
+<<<<<<< HEAD
+        return 'rtmp\n' + '\n'.join(str(x) for x in sorted(cmd._extract_call_args(self.params)[1].values()))
+=======
+        self.params = params
         self.errorlog = self.session.options.get("errorlog")
+        self.timeout = timeout
+>>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
-        if not pbs_compat:
-            self.fd = None
-            self.timeout = timeout
-            self.params["_out_bufsize"] = 8192
+    def open(self):
+        cmd = self._check_cmd()
+        params = self.params.copy()
+        params["_bg"] = True
 
-            if LooseVersion(sh.__version__) >= LooseVersion("1.07"):
-                self.params["_no_out"] = True
-                self.params["_no_pipe"] = True
+        if self.errorlog:
+            tmpfile = tempfile.NamedTemporaryFile(prefix="livestreamer",
+                                                  suffix=".err", delete=False)
+            params["_err"] = tmpfile
+        else:
+            params["_err"] = open(os.devnull, "wb")
+
+        if pbs_compat:
+            stream = cmd(**params)
+        else:
+            stream = StreamProcessIO(self.session, cmd, params,
+                                     timeout=self.timeout)
+            stream.open()
+
+        # Wait 0.5 seconds to see if program exited prematurely
+        time.sleep(0.5)
+
+        if pbs_compat:
+            process_alive = stream.process.returncode is None
+        else:
+            process_alive = stream.process.alive
+
+        if not process_alive:
+            if self.errorlog:
+                raise StreamError(("Error while executing subprocess, error output logged to: {0}").format(tmpfile.name))
+            else:
+                raise StreamError("Error while executing subprocess")
+
+        if pbs_compat:
+            return stream.process.stdout
+        else:
+            return stream
 
     def _check_cmd(self):
         try:
@@ -64,71 +160,7 @@ class StreamProcess(Stream):
     def cmdline(self):
         cmd = self._check_cmd()
 
-        return 'rtmp\n' + '\n'.join(str(x) for x in sorted(cmd._extract_call_args(self.params)[1].values()))
-
-    def open(self):
-        cmd = self._check_cmd()
-
-        def out_callback(data, queue, process):
-            self.last_data_time = time.time()
-            self.process_alive = process.alive
-
-            with self.lock:
-                self.fd.write(data)
-
-        if self.errorlog:
-            tmpfile = tempfile.NamedTemporaryFile(prefix="livestreamer",
-                                                  suffix=".err", delete=False)
-            self.params["_err"] = tmpfile
-        else:
-            self.params["_err"] = open(os.devnull, "wb")
-
-        if not pbs_compat:
-            self.fd = RingBuffer()
-            self.last_data_time = time.time()
-            self.params["_out"] = out_callback
-
-        self.lock = Lock()
-        stream = cmd(**self.params)
-
-        # Wait 0.5 seconds to see if program exited prematurely
-        time.sleep(0.5)
-
-        if pbs_compat:
-            self.process_alive = stream.process.returncode is None
-        else:
-            self.process_alive = stream.process.alive
-
-        if not self.process_alive:
-            if self.errorlog:
-                raise StreamError(("Error while executing subprocess, error output logged to: {0}").format(tmpfile.name))
-            else:
-                raise StreamError("Error while executing subprocess")
-
-        if pbs_compat:
-            return stream.process.stdout
-        else:
-            return self
-
-    def read(self, size=0):
-        if not self.fd:
-            return b""
-
-        while self.fd.length < size and self.process_alive:
-            elapsed_since_read = time.time() - self.last_data_time
-
-            if elapsed_since_read > self.timeout:
-                if self.fd.length == 0:
-                    raise IOError("Read timeout")
-                else:
-                    break
-
-            time.sleep(0.05)
-
-        with self.lock:
-            data = self.fd.read(size)
-
-        return data
+        return str(cmd.bake(**self.params))
 
     @classmethod
     def is_usable(cls, cmd):
@@ -139,11 +171,10 @@ class StreamProcess(Stream):
 
         return True
 
-
 from .akamaihd import AkamaiHDStream
 from .hls import HLSStream
 from .http import HTTPStream
 from .rtmpdump import RTMPStream
 
-__all__ = ["StreamError", "Stream", "StreamProcess",
+__all__ = ["StreamError", "Stream", "StreamProcess", "StreamIOWrapper",
            "AkamaiHDStream", "HLSStream", "HTTPStream", "RTMPStream"]

@@ -2,12 +2,13 @@
 
 from . import Stream, StreamError
 from ..compat import str, bytes, urlparse
-from ..utils import RingBuffer, swfdecompress, swfverify, urlget, urlopen
+from ..utils import Buffer, swfdecompress, swfverify, urlget, urlopen
 
 from ..packages.flashmedia import FLV, FLVError
 from ..packages.flashmedia.tag import ScriptData
 
 import base64
+import io
 import hashlib
 import hmac
 import random
@@ -46,7 +47,7 @@ def cache_bust_string(length):
 
     return rval
 
-class AkamaiHDStream(Stream):
+class AkamaiHDStreamIO(io.IOBase):
     Version = "2.5.8"
     FlashVersion = "LNX 11,1,102,63"
 
@@ -71,10 +72,9 @@ class AkamaiHDStream(Stream):
     }
 
     def __init__(self, session, url, swf=None, seek=None):
-        Stream.__init__(self, session)
-
         parsed = urlparse(url)
 
+        self.session = session
         self.logger = self.session.logger.new_module("stream.akamaihd")
         self.host = ("{scheme}://{netloc}").format(scheme=parsed.scheme, netloc=parsed.netloc)
         self.streamname = parsed.path[1:]
@@ -90,7 +90,7 @@ class AkamaiHDStream(Stream):
         self.sessionid = None
         self.flv = None
 
-        self.buffer = RingBuffer()
+        self.buffer = Buffer()
         self.completed_handshake = False
 
         url = self.StreamURLFormat.format(host=self.host, streamname=self.streamname)
@@ -99,7 +99,7 @@ class AkamaiHDStream(Stream):
         self.logger.debug("Opening host={host} streamname={streamname}", host=self.host, streamname=self.streamname)
 
         try:
-            res = urlget(url, prefetch=False, params=params)
+            res = urlget(url, stream=True, params=params)
         except Exception as err:
             raise StreamError(str(err))
 
@@ -150,11 +150,11 @@ class AkamaiHDStream(Stream):
         return urlopen(url, headers=headers, params=params,
                        data=self.ControlData, exception=StreamError)
 
-    def read(self, size=0):
+    def read(self, size=-1):
         if not self.flv:
             return b""
 
-        while self.buffer.length < size:
+        while self.buffer.length < size and self.flv:
             try:
                 tag = next(self.flv)
             except StopIteration:
@@ -223,5 +223,20 @@ class AkamaiHDStream(Stream):
 
             self.send_token(sessiontoken)
             self.completed_handshake = True
+
+
+class AkamaiHDStream(Stream):
+    def __init__(self, session, url, swf=None, seek=None):
+        Stream.__init__(self, session)
+
+        self.seek = seek
+        self.swf = swf
+        self.url = url
+
+    def open(self):
+        stream = AkamaiHDStreamIO(self.session, self.url,
+                                  self.swf, self.seek)
+
+        return stream.open()
 
 __all__ = ["AkamaiHDStream"]

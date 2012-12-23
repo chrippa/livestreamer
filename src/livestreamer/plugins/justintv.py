@@ -1,15 +1,20 @@
-from livestreamer.compat import str, bytes
+from livestreamer.compat import str, bytes, urlparse
 from livestreamer.options import Options
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError
+<<<<<<< HEAD
 from livestreamer.stream import RTMPStream, HLSStream, StreamProt
 from livestreamer.utils import urlget, urlresolve, verifyjson
+=======
+from livestreamer.stream import RTMPStream, HLSStream
+from livestreamer.utils import urlget, urlresolve, verifyjson, \
+                               res_json, res_xml, parse_xml, get_node_text
+>>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
 from hashlib import sha1
 
 import hmac
 import re
 import random
-import xml.dom.minidom
 
 
 class JustinTV(Plugin):
@@ -31,7 +36,7 @@ class JustinTV(Plugin):
         return ("justin.tv" in url) or ("twitch.tv" in url)
 
     def _get_channel_name(self, url):
-        return url.rstrip("/").rpartition("/")[2].lower()
+        return urlparse(url).path.rstrip("/").rpartition("/")[-1].lower()
 
     def _get_metadata(self):
         url = self.MetadataURL.format(self.channelname)
@@ -43,11 +48,7 @@ class JustinTV(Plugin):
             headers["Cookie"] = cookie
 
         res = urlget(url, headers=headers)
-
-        try:
-            dom = xml.dom.minidom.parseString(res.text)
-        except Exception as err:
-            raise PluginError(("Unable to parse config XML: {0})").format(err))
+        dom = res_xml(res, "metadata XML")
 
         meta = dom.getElementsByTagName("meta")[0]
         metadata = {}
@@ -61,18 +62,7 @@ class JustinTV(Plugin):
     def _get_node_if_exists(self, dom, name):
         elements = dom.getElementsByTagName(name)
         if elements and len(elements) > 0:
-            return self._get_node_text(elements[0])
-
-    def _get_node_text(self, element):
-        res = []
-        for node in element.childNodes:
-            if node.nodeType == node.TEXT_NODE:
-                res.append(node.data)
-
-        if len(res) == 0:
-            return None
-        else:
-            return "".join(res)
+            return get_node_text(elements[0])
 
     def _authenticate(self):
         chansub = None
@@ -112,11 +102,7 @@ class JustinTV(Plugin):
 
         streams = {}
 
-        try:
-            dom = xml.dom.minidom.parseString(data)
-        except Exception as err:
-            raise PluginError(("Unable to parse config XML: {0})").format(err))
-
+        dom = parse_xml(data, "config XML")
         nodes = dom.getElementsByTagName("nodes")[0]
 
         if len(nodes.childNodes) == 0:
@@ -127,7 +113,7 @@ class JustinTV(Plugin):
         for node in nodes.childNodes:
             info = {}
             for child in node.childNodes:
-                info[child.tagName] = self._get_node_text(child)
+                info[child.tagName] = get_node_text(child)
 
             if not ("connect" in info and "play" in info):
                 continue
@@ -156,17 +142,20 @@ class JustinTV(Plugin):
             res = urlget(url, params=dict(type="any", connection="wifi"),
                          exception=IOError)
         except IOError:
+            self.logger.debug("HLS streams not available")
             return {}
 
-        if not isinstance(res.json, list):
-            raise PluginError("Stream info response is not JSON")
+        json = res_json(res, "stream token JSON")
 
-        if len(res.json) == 0:
+        if not isinstance(json, list):
+            raise PluginError("Invalid JSON response")
+
+        if len(json) == 0:
             raise PluginError("No stream token in JSON")
 
         streams = {}
 
-        token = verifyjson(res.json[0], "token")
+        token = verifyjson(json[0], "token")
         hashed = hmac.new(self.HLSStreamTokenKey, bytes(token, "utf8"), sha1)
         fulltoken = hashed.hexdigest() + ":" + token
         url = self.HLSSPlaylistURL.format(self.channelname)
