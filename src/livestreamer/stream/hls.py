@@ -83,25 +83,9 @@ class HLSStreamFiller(Thread):
     def __init__(self, stream):
         Thread.__init__(self)
 
-<<<<<<< HEAD
-    def cmd(self):
-        return 'hls\n' + self.url
-
-    def open(self):
-        self.playlist = {}
-        self.playlist_reload_time = 0
-        self.playlist_minimal_reload_time = 15
-        self.playlist_end = False
-        self.entry = None
-        self.decryptor = None
-        self.decryptor_key = None
-        self.decryptor_iv = None
-        self.sequence = 0
-=======
         self.daemon = True
         self.queue = queue.Queue()
         self.stream = stream
->>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
     def download_sequence(self, entry):
         try:
@@ -279,6 +263,9 @@ class HLSStream(Stream):
 
         self.url = url
 
+    def cmd(self):
+        return 'hls\n' + self.url
+        
     def open(self):
         fd = HLSStreamIO(self.session, self.url)
 

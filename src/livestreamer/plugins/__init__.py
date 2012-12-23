@@ -75,14 +75,10 @@ class Plugin(object):
             to be of highest quality and vice versa for *worst*.
         """
 
-<<<<<<< HEAD
-        streams = self._get_streams(prot)
-=======
         try:
-            streams = self._get_streams()
+            streams = self._get_streams(prot)
         except NoStreamsError:
             return {}
->>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
         best = (0, None)
         worst = (sys.maxsize, None)

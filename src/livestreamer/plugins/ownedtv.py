@@ -57,23 +57,7 @@ class OwnedTV(Plugin):
 
         return False
 
-<<<<<<< HEAD
-    def _get_node_text(self, element):
-        res = []
-        for node in element.childNodes:
-            if node.nodeType == node.TEXT_NODE:
-                res.append(node.data)
-
-        if len(res) == 0:
-            return None
-        else:
-            return "".join(res)
-
     def _get_streams(self, prot):
-    
-=======
-    def _get_streams(self):
->>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
         (liveid, swfurl) = self._get_channel_info(self.url)
 
         if not (liveid and swfurl):

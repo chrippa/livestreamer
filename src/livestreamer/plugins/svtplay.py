@@ -1,12 +1,7 @@
 from livestreamer.compat import str
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError
-<<<<<<< HEAD
 from livestreamer.stream import RTMPStream, HLSStream, StreamProt
-from livestreamer.utils import urlget, verifyjson
-=======
-from livestreamer.stream import RTMPStream, HLSStream
 from livestreamer.utils import urlget, verifyjson, res_json
->>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
 import re
 

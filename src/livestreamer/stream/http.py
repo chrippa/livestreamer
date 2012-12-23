@@ -16,9 +16,5 @@ class HTTPStream(Stream):
                      exception=StreamError,
                      **self.args)
 
-<<<<<<< HEAD
-        return res.raw
-=======
         return StreamIOWrapper(res.raw)
 
->>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103

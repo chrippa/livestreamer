@@ -68,13 +68,8 @@ class GomTV(Plugin):
 
         Plugin.__init__(self, url)
 
-<<<<<<< HEAD
     def _get_streams(self, prot):
-        self.rsession = requests.session(prefetch=True)
-=======
-    def _get_streams(self):
         self.rsession = requests.session()
->>>>>>> 9dd837ad819e7cb46cdf29aaffa5f32de73ff103
 
         options = self.options
         if options.get("cookie"):
