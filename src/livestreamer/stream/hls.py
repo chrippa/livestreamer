@@ -303,6 +303,9 @@ class HLSStream(Stream):
 
         self.url = url
 
+    def cmd(self):
+        return 'hls\n' + self.url
+        
     def open(self):
         fd = HLSStreamIO(self.session, self.url)
 

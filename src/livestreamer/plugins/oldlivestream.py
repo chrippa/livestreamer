@@ -10,7 +10,7 @@ class OldLivestream(Plugin):
     def can_handle_url(self, url):
         return "livestream.com" in url and not "new.livestream.com" in url
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         channelname = urlparse(self.url).path.rstrip("/").rpartition("/")[-1].lower()
         channelname = channelname.replace("_", "-")
 

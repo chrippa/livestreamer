@@ -15,7 +15,8 @@ class Ongamenet(Plugin):
     def can_handle_url(self, url):
         return "ongamenet.com" in url
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
+    
         res = urlget(self.PlayerURL)
         urls = re.findall("return \"(rtmp://.+)\"", res.text)
         streams = {}

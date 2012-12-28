@@ -1,6 +1,6 @@
 from livestreamer.options import Options
 
-import re
+import re, sys
 
 SpecialQualityWeights = {
     "live": 1080,
@@ -15,6 +15,9 @@ SpecialQualityWeights = {
 }
 
 def qualityweight(quality):
+    # remove protocol suffix
+    if quality[-4:] == '_hls': quality = quality[:-4]
+
     if quality in SpecialQualityWeights:
         return SpecialQualityWeights[quality]
 
@@ -61,7 +64,7 @@ class Plugin(object):
     def get_option(cls, key):
         return cls.options.get(key)
 
-    def get_streams(self):
+    def get_streams(self, prot = None):
         """
             Retrieves and returns a :class:`dict` containing the streams.
 
@@ -69,27 +72,33 @@ class Plugin(object):
             The value is a :class:`Stream` object.
 
             The stream with key *best* is a reference to the stream most likely
-            to be of highest quality.
+            to be of highest quality and vice versa for *worst*.
         """
 
         try:
-            streams = self._get_streams()
+            streams = self._get_streams(prot)
         except NoStreamsError:
             return {}
 
         best = (0, None)
+        worst = (sys.maxsize, None)
         for name, stream in streams.items():
             weight = qualityweight(name)
 
             if weight > best[0]:
                 best = (weight, stream)
 
+            if weight < worst[0]:
+                worst = (weight, stream)
+
         if best[1] is not None:
             streams["best"] = best[1]
+        if worst[1] is not None:
+            streams["worst"] = worst[1]
 
         return streams
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         raise NotImplementedError
 
 class PluginError(Exception):

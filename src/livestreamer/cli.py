@@ -6,7 +6,7 @@ import subprocess
 
 from livestreamer import *
 from livestreamer.compat import input, stdout, file, is_win32
-from livestreamer.stream import StreamProcess
+from livestreamer.stream import StreamProcess, StreamProt
 from livestreamer.utils import ArgumentParser, NamedPipe
 
 exampleusage = """
@@ -30,7 +30,7 @@ parser = ArgumentParser(description="CLI program that launches streams from vari
                         epilog=exampleusage, add_help=False)
 
 parser.add_argument("url", help="URL to stream", nargs="?")
-parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available",
+parser.add_argument("stream", help="Stream quality to play, use 'best' for highest quality available, 'worst' for lowest",
                     nargs="?")
 
 parser.add_argument("-h", "--help", action="store_true",
@@ -41,6 +41,7 @@ parser.add_argument("-u", "--plugins", action="store_true",
 parser.add_argument("-l", "--loglevel", metavar="level",
                     help="Set log level, valid levels: none, error, warning, info, debug",
                     default="info")
+parser.add_argument("-P", "--prot", metavar="prot", help="Stream protocol 'ahs', 'hls', 'http' or 'rtmp'.")
 
 playeropt = parser.add_argument_group("player options")
 playeropt.add_argument("-p", "--player", metavar="player",
@@ -61,7 +62,7 @@ outputopt.add_argument("-O", "--stdout", action="store_true",
 
 streamopt = parser.add_argument_group("stream options")
 streamopt.add_argument("-c", "--cmdline", action="store_true",
-                       help="Print command-line used internally to play stream, this may not be available on all streams")
+                       help="Print arguments used internally to play stream")
 streamopt.add_argument("-e", "--errorlog", action="store_true",
                        help="Log possible errors from internal command-line to a temporary file, use when debugging")
 streamopt.add_argument("-r", "--rtmpdump", metavar="path",
@@ -266,15 +267,12 @@ def handle_stream(args, streams):
     stream = streams[streamname]
 
     if args.cmdline:
-        if isinstance(stream, StreamProcess):
-            try:
-                cmdline = stream.cmdline()
-            except StreamError as err:
-                exit(err)
+        try:
+            cmdline = stream.cmdline()
+        except StreamError as err:
+            exit(err)
 
-            msg(cmdline)
-        else:
-            exit("Stream does not use a command-line")
+        msg(cmdline)
     else:
         success = False
         altcount = 1
@@ -302,17 +300,35 @@ def handle_url(args):
 
     logger.info("Found matching plugin {0} for URL {1}", channel.module, args.url)
 
+    if args.prot:
+        if args.prot == "ahs":
+            args.prot = StreamProt.AHS
+        elif args.prot == "hls":
+            args.prot = StreamProt.HLS
+        elif args.prot == "http":
+            args.prot = StreamProt.HTTP
+        elif args.prot == "rtmp":
+            args.prot = StreamProt.RTMP
+        else:
+            args.prot = None
+
     try:
-        streams = channel.get_streams()
+        streams = channel.get_streams(args.prot)
     except (StreamError, PluginError) as err:
         exit(str(err))
 
     if len(streams) == 0:
         exit("No streams found on this URL: {0}", args.url)
 
-    keys = list(streams.keys())
-    keys.sort()
-    validstreams = (", ").join(keys)
+    # stream list
+    validstreams = ''
+    for name, stream in sorted(streams.items()):
+        if name in ('best', 'worst'): continue
+        validstreams += name
+        if stream is streams['best']: validstreams += ' (best)'
+        if stream is streams['worst']: validstreams += ' (worst)'
+        validstreams += ', '
+    validstreams = validstreams[:-2]
 
     if args.stream:
         if args.stream == "best":

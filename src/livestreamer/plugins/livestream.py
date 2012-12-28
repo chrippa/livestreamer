@@ -42,7 +42,7 @@ class Livestream(Plugin):
 
         return streams
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         self.logger.debug("Fetching stream info")
         info = self._get_stream_info()
 

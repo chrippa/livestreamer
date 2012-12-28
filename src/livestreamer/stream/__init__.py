@@ -7,6 +7,11 @@ import os
 import time
 import tempfile
 
+class StreamProt:
+    AHS=0
+    HLS=1
+    HTTP=2
+    RTMP=3
 
 class StreamError(Exception):
     pass
@@ -29,6 +34,8 @@ class Stream(object):
         """
         raise NotImplementedError
 
+    def cmdline(self):
+        return self.cmd()
 
 class StreamIOWrapper(io.IOBase):
     """Wraps file-like objects that are not inheriting from IOBase"""
@@ -139,7 +146,7 @@ class StreamProcess(Stream):
     def cmdline(self):
         cmd = self._check_cmd()
 
-        return str(cmd.bake(**self.params))
+        return 'rtmp\n' + '\n'.join(str(x) for x in sorted(cmd._extract_call_args(self.params)[1].values()))
 
     @classmethod
     def is_usable(cls, cmd):

@@ -11,7 +11,7 @@ class TestPlugin(Plugin):
     def can_handle_url(self, url):
         return "test.se" in url
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         streams = {}
         streams["rtmp"] = RTMPStream(self.session, dict(rtmp="rtmp://test.se"))
         streams["hls"] = HLSStream(self.session, "http://test.se/playlist.m3u8")

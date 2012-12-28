@@ -1,7 +1,7 @@
 from livestreamer.compat import str, bytes, urlparse
 from livestreamer.packages.flashmedia import AMF0Packet, AMFError
 from livestreamer.plugins import Plugin, PluginError, NoStreamsError
-from livestreamer.stream import HLSStream, RTMPStream
+from livestreamer.stream import HLSStream, RTMPStream, StreamProt
 from livestreamer.utils import urlget
 
 from io import BytesIO
@@ -30,7 +30,7 @@ class UStreamTV(Plugin):
                        swfUrl=self.SWFURL, live=True)
         return RTMPStream(self.session, options)
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         channelid = self._get_channel_id(self.url)
 
         if not channelid:
@@ -56,37 +56,39 @@ class UStreamTV(Plugin):
 
         streams = {}
 
-        if "liveHttpUrl" in result:
-            try:
-                hlsstreams = HLSStream.parse_variant_playlist(self.session,
-                                                              result["liveHttpUrl"])
-                streams.update(hlsstreams)
-            except IOError as err:
-                self.logger.warning("Failed to get variant playlist: {0}", err)
+        if prot in (None, StreamProt.HLS):
+            if "liveHttpUrl" in result:
+                try:
+                    hlsstreams = HLSStream.parse_variant_playlist(self.session,
+                                                                  result["liveHttpUrl"])
+                    streams.update(hlsstreams)
+                except IOError as err:
+                    self.logger.warning("Failed to get variant playlist: {0}", err)
 
-        if "streamName" in result:
-            if "cdnUrl" in result:
-                cdn = result["cdnUrl"]
-            elif "fmsUrl" in result:
-                cdn = result["fmsUrl"]
-            else:
-                self.logger.warning("Missing cdnUrl and fmsUrl from result")
-                return streams
+        if prot in (None, StreamProt.RTMP):
+            if "streamName" in result:
+                if "cdnUrl" in result:
+                    cdn = result["cdnUrl"]
+                elif "fmsUrl" in result:
+                    cdn = result["fmsUrl"]
+                else:
+                    self.logger.warning("Missing cdnUrl and fmsUrl from result")
+                    return streams
 
-            if "videoCodec" in result and result["videoCodec"]["height"] > 0:
-                streamname = "{0}p".format(int(result["videoCodec"]["height"]))
-            else:
-                streamname = "live"
+                if "videoCodec" in result and result["videoCodec"]["height"] > 0:
+                    streamname = "{0}p".format(int(result["videoCodec"]["height"]))
+                else:
+                    streamname = "live"
 
-            streams[streamname] = self._create_stream(cdn, result["streamName"])
+                streams[streamname] = self._create_stream(cdn, result["streamName"])
 
-        if "streamVersions" in result:
-            for version, info in result["streamVersions"].items():
-                if "streamVersionCdn" in info:
-                    for name, cdn in info["streamVersionCdn"].items():
-                        if "cdnStreamUrl" in cdn and "cdnStreamName" in cdn:
-                            streams["cdn_" + name] = self._create_stream(cdn["cdnStreamUrl"],
-                                                                         cdn["cdnStreamName"])
+            if "streamVersions" in result:
+                for version, info in result["streamVersions"].items():
+                    if "streamVersionCdn" in info:
+                        for name, cdn in info["streamVersionCdn"].items():
+                            if "cdnStreamUrl" in cdn and "cdnStreamName" in cdn:
+                                streams["cdn_" + name] = self._create_stream(cdn["cdnStreamUrl"],
+                                                                             cdn["cdnStreamName"])
 
 
         return streams

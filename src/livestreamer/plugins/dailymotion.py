@@ -145,7 +145,7 @@ class DailyMotion(Plugin):
 
         return streams
 
-    def _get_streams(self):
+    def _get_streams(self, prot):
         channelname = self._get_channel_name(self.url)
 
         if not channelname:
