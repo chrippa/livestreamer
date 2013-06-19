@@ -6,14 +6,12 @@ from livestreamer.stream import HLSStream, RTMPStream
 from livestreamer.utils import urlget
 
 from io import BytesIO
-from time import sleep
 
 import re
 
 class UStreamTV(Plugin):
     AMFURL = "http://cgw.ustream.tv/Viewer/getStream/1/{0}.amf"
     SWFURL = "http://static-cdn1.ustream.tv/swf/live/viewer3:50.swf"
-    HLSURL = "http://iphone-streaming.ustream.tv/uhls/{0}/streams/live/iphone/playlist.m3u8"
 
     @classmethod
     def can_handle_url(self, url):
@@ -37,39 +35,12 @@ class UStreamTV(Plugin):
                        swfUrl=self.SWFURL, live=True)
         return RTMPStream(self.session, options)
 
-    def _stream_is_ready(self, channelid, i=0, progressed=0):
-
-        if i < 20:
-            options = dict(appType="11", appVersion="2")
-            res = urlget(self.HLSURL.format(channelid), params=options)
-
-            if res.status_code == 204:
-                self.logger.debug("ChannelId {0} is offline", channelid)
-                return False
-
-            if "#EXT-X-STREAM-INF" in res.text:
-                return True
-
-            if "#PROGRESSED" in res.text:
-                progress = int(re.search('#PROGRESSED (\d+)%', res.text).group(1))
-                self.logger.debug("Progress: %d" % progress)
-                sleep(2)
-
-                if progress > progressed:
-                    return self._stream_is_ready(channelid=channelid, i=i, progressed=progress)
-                else:
-                    return self._stream_is_ready(channelid=channelid, i=i+1, progressed=progress)
-            else:
-                i = 99 # Fix Laika HLS sillyness
-                return True
-        else:
-            return False
-
     def _get_streams(self):
         channelid = self._get_channel_id(self.url)
 
         if not channelid:
             raise NoStreamsError(self.url)
+
 
         self.logger.debug("Fetching stream info")
         res = urlget(self.AMFURL.format(channelid))
@@ -90,15 +61,7 @@ class UStreamTV(Plugin):
 
         streams = {}
 
-        if self._stream_is_ready(channelid):
-            try:
-                hlsstreams = HLSStream.parse_variant_playlist(self.session,
-                                                              self.HLSURL.format(channelid))
-                streams.update(hlsstreams)
-            except IOError as err:
-                self.logger.warning("Failed to get variant playlist: {0}", err)
-        elif "liveHttpUrl" in result:
-            self.logger.debug("Found liveHttpUrl {0}", result["liveHttpUrl"])
+        if "liveHttpUrl" in result:
             try:
                 hlsstreams = HLSStream.parse_variant_playlist(self.session,
                                                               result["liveHttpUrl"])
