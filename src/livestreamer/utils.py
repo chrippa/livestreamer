@@ -24,7 +24,7 @@ def urlopen(url, method="get", exception=PluginError, session=None,
         if session:
             res = session.request(method, url, timeout=timeout, *args, **kw)
         else:
-            res = requests.request(method, url, timeout=timeout, *args, **kw)
+            res = requests.request(method, url, timeout=timeout, verify=False, *args, **kw)
 
         res.raise_for_status()
     except (requests.exceptions.RequestException, IOError) as rerr:
