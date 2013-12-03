@@ -22,37 +22,36 @@ class N24de(Plugin):
 
         
     def is_live_stream(self,url):
-	return "pssimn24live" in url
+        return "pssimn24live" in url
       
     def get_video_source(self,text):
         match = re.search("ideoFlashSource = \"(.+?)\";", text)
         if not match:
             return NoStreamsError(self.url)  
-	  
-	return match.group(1)	
-	
+        return match.group(1)	
+
       
     def _get_streams(self):
         if not RTMPStream.is_usable(self.session):
             raise PluginError("rtmpdump is not usable and required by Filmon plugin")
-	  
+ 
         self.rsession = requests.session()
         res = urlget(self.url, session=self.rsession)
 
         if not N24de.get_video_source(self,res.text):
-	    raise NoStreamsError(self.url)
-	  
+            raise NoStreamsError(self.url)
+
         match = re.search("videoFlashconnectionUrl = \"(.+?)\";", res.text)
         if not match:
             raise NoStreamsError(self.url)  
-	  
-	videoFlashconnectionUrl = match.group(1)
-	self.server = videoFlashconnectionUrl
-	
+  
+        videoFlashconnectionUrl = match.group(1)
+        self.server = videoFlashconnectionUrl
+
         if not N24de.is_live_stream(self,videoFlashconnectionUrl):
-	    self.playpath = N24de.get_video_source(self,res.text)
-	else:
-	    self.playpath = "stream1"
+            self.playpath = N24de.get_video_source(self,res.text)
+        else:
+            self.playpath = "stream1"
 
 
         streams = {}
