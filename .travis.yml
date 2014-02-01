@@ -8,3 +8,4 @@ script: python setup.py test
 install:
  - sudo apt-get install rtmpdump
  - sudo pip install requests sh argparse
+I cant believe this
