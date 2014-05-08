@@ -253,6 +253,9 @@ pluginopt.add_argument("--twitch-oauth-authenticate", action="store_true",
 pluginopt.add_argument("--ustream-password",
                        help="Use this to access password protected streams.",
                        metavar="password")
+pluginopt.add_argument("--ustream-video-only",
+                       help="Use this for Ustream streams without audio data.",
+                       metavar="video_only", nargs="?", const=True, default=False),
 pluginopt.add_argument("--crunchyroll-username", metavar="username",
                        help="Specify Crunchyroll username to allow access to "
                             "restricted streams")

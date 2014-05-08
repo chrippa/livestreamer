@@ -73,7 +73,8 @@ class UHSStreamWriter(SegmentedStreamWriter):
         SegmentedStreamWriter.__init__(self, *args, **kwargs)
 
         self.concater = FLVTagConcat(flatten_timestamps=True,
-                                     sync_headers=True)
+                                     sync_headers=True,
+                                     has_audio=not self.stream.video_only)
 
     def open_chunk(self, chunk, retries=3):
         if not retries or self.closed:
@@ -236,7 +237,7 @@ class UHSStream(Stream):
     __shortname__ = "uhs"
 
     def __init__(self, session, channel_id, page_url, provider,
-                 stream_index, password=""):
+                 stream_index, password="", video_only=False):
         Stream.__init__(self, session)
 
         self.channel_id = channel_id
@@ -244,14 +245,16 @@ class UHSStream(Stream):
         self.provider = provider
         self.stream_index = stream_index
         self.password = password
+        self.video_only = video_only
 
     def __repr__(self):
         return ("<UHSStream({0!r}, {1!r}, "
-                "{2!r}, {3!r}, {4!r})>").format(self.channel_id,
+                "{2!r}, {3!r}, {4!r}, {5!r})>").format(self.channel_id,
                                                 self.page_url,
                                                 self.provider,
                                                 self.stream_index,
-                                                self.password)
+                                                self.password,
+                                                self.video_only)
 
     def __json__(self):
         return dict(channel_id=self.channel_id,
@@ -259,6 +262,7 @@ class UHSStream(Stream):
                     provider=self.provider,
                     stream_index=self.stream_index,
                     password=self.password,
+                    video_only=self.video_only,
                     **Stream.__json__(self))
 
     def open(self):
@@ -270,7 +274,8 @@ class UHSStream(Stream):
 
 class UStreamTV(Plugin):
     options = Options({
-        "password": ""
+        "password": "",
+        "video_only": False
     })
 
     @classmethod
@@ -352,6 +357,7 @@ class UStreamTV(Plugin):
 
     def _get_streams_from_rtmp(self):
         password = self.options.get("password")
+        video_only = self.options.get("video_only")
         module_info = self._get_module_info("channel", self.channel_id,
                                             password)
         if not module_info:
@@ -390,7 +396,7 @@ class UStreamTV(Plugin):
                 if provider_name.startswith("uhs_"):
                     stream = UHSStream(self.session, self.channel_id,
                                        self.url, provider_name,
-                                       stream_index, password)
+                                       stream_index, password, video_only)
                 elif (provider_url.startswith("rtmp") and
                       RTMPStream.is_usable(self.session)):
                         playpath = stream_info.get("streamName")
