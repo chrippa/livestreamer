@@ -692,6 +692,10 @@ def setup_plugin_options():
         livestreamer.set_plugin_option("ustreamtv", "password",
                                        args.ustream_password)
 
+    if args.ustream_video_only:
+        livestreamer.set_plugin_option("ustreamtv", "video_only",
+                                       args.ustream_video_only)
+
     if args.crunchyroll_username:
         livestreamer.set_plugin_option("crunchyroll", "username",
                                        args.crunchyroll_username)
