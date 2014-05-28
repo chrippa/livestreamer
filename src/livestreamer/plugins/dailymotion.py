@@ -1,8 +1,8 @@
 import re
 from functools import reduce
 
-from livestreamer.compat import urlparse, unquote, urlparse
-from livestreamer.exceptions import StreamError, PluginError, NoStreamsError
+from livestreamer.compat import urlparse, unquote, range
+from livestreamer.exceptions import StreamError, PluginError
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http
 from livestreamer.stream.flvconcat import FLVTagConcat
@@ -25,7 +25,6 @@ QUALITY_MAP = {
 }
 RTMP_SPLIT_REGEX = r"(?P<host>rtmp://[^/]+)/(?P<app>[^/]+)/(?P<playpath>.+)"
 STREAM_INFO_URL = "http://www.dailymotion.com/sequence/full/{0}"
-FLV_HEADER = b'\x46\x4C\x56\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00'
 
 class DailyMotionWorker(SegmentedStreamWorker):
 
@@ -35,10 +34,7 @@ class DailyMotionWorker(SegmentedStreamWorker):
         SegmentedStreamWorker.__init__(self, reader)
 
     def iter_segments(self):
-        segment = 1
-        while not (segment > self.segment_max or self.closed):
-            yield segment
-            segment += 1
+        return range(self.segment_min, self.segment_max)
 
 class DailyMotionWriter(SegmentedStreamWriter):
     def __init__(self, reader):
@@ -65,8 +61,7 @@ class DailyMotionWriter(SegmentedStreamWriter):
             return
 
         try:
-            # The VOD data stream is missing the right FLV header so we add it here
-            for data in self.concater.iter_chunks(buf=FLV_HEADER+res.content):
+            for data in self.concater.iter_chunks(buf=res.content, skip_header=True):
                 self.reader.buffer.write(data)
 
                 if self.closed:
@@ -126,7 +121,7 @@ class DailyMotionStream(Stream):
                     'segment_min'  : 1,
                     'segment_max'  : reduce(lambda i,j:i+j[0], json['fragments'], 0),
             }
-        except:
+        except KeyError:
             raise PluginError('Unexpected JSON response')
 
         reader = DailyMotionReader(self, params=params)
@@ -250,9 +245,9 @@ class DailyMotion(Plugin):
     def _get_vod_streams(self, channelname):
         res = http.get(self.url)
         match = re.search('autoURL%22%3A%22(.*?)%22', res.text)
-        if not match.groups():
+        if not match:
             raise PluginError('Error retrieving manifest url')
-        manifest_url = unquote(match.groups()[0]).replace('\\', '')
+        manifest_url = unquote(match.group(1)).replace('\\', '')
 
         try:
             res = http.get(manifest_url)
