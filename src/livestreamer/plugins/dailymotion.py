@@ -1,4 +1,5 @@
 import re
+from functools import reduce
 
 from livestreamer.compat import urlparse, unquote, urlparse
 from livestreamer.exceptions import StreamError, PluginError, NoStreamsError
