@@ -435,6 +435,7 @@ class HDSStream(Stream):
         parsed = urlparse(url)
         baseurl = manifest.findtext("baseURL")
         baseheight = manifest.findtext("height")
+        id = manifest.findtext("id")
         bootstraps = {}
         streams = {}
 
@@ -478,7 +479,10 @@ class HDSStream(Stream):
                 height = media.attrib.get("height")
 
                 if height:
-                    quality = height + "p"
+                    if id == "live_src":
+                        quality = height + "p+"
+                    else:
+                        quality = height + "p"
                 elif bitrate:
                     quality = bitrate + "k"
                 elif streamid:

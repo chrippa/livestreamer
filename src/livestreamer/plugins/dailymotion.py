@@ -19,7 +19,8 @@ QUALITY_MAP = {
     "hd720": "720p",
     "hd1080": "1080p",
     "custom": "live",
-    "auto": "hds"
+    "auto": "hds",
+    "source": "hds"
 }
 STREAM_INFO_URL = "http://www.dailymotion.com/sequence/full/{0}"
 
