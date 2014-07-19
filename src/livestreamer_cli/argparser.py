@@ -620,6 +620,14 @@ transport.add_argument(
     Useful when debugging rtmpdump related issues.
     """
 )
+transport.add_argument("--hls-download-threads",
+    type=int,
+    help="""
+    How many threads spawn to download hls segments in parallel.
+
+    Default is 1
+    """
+)
 
 
 http = parser.add_argument_group("HTTP options")

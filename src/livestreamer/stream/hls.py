@@ -105,7 +105,7 @@ class HLSStreamWriter(SegmentedStreamWriter):
         else:
             content = res.content
 
-        self.reader.buffer.write(content)
+        self.reader.buffer.write(content, sequence.num) # For the order.
         self.logger.debug("Download of segment {0} complete", sequence.num)
 
 class HLSStreamWorker(SegmentedStreamWorker):

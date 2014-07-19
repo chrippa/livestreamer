@@ -697,6 +697,9 @@ def setup_options():
     if args.rtmp_timeout:
         livestreamer.set_option("rtmp-timeout", args.rtmp_timeout)
 
+    if args.hls_download_threads:
+        livestreamer.set_option("hls-download-threads", args.hls_download_threads)
+
     livestreamer.set_option("subprocess-errorlog", args.subprocess_errorlog)
 
     # Deprecated options

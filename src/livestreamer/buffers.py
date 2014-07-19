@@ -1,4 +1,5 @@
-from collections import deque
+from bisect import bisect_left
+from collections import deque, namedtuple
 from io import BytesIO
 from threading import Event, Lock
 
@@ -161,4 +162,158 @@ class RingBuffer(Buffer):
     def is_full(self):
         return self.free == 0
 
-__all__ = ["Buffer", "RingBuffer"]
+class Segment(namedtuple("Segment", "num chunk")):
+    __slots__ = ()
+    def __new__(cls, num, chunk):
+        chunk = Chunk(chunk)
+        return super(Segment, cls).__new__(cls, num, chunk)
+
+    def read(self, size=-1):
+        return self.chunk.read(size)
+
+    @property
+    def empty(self):
+        return self.chunk.empty
+
+class SortedDeque(deque):
+    __slots__ = ()
+    def __init__(self, iterable=[]):
+        super(SortedDeque, self).__init__(sorted(iterable))
+
+    # Must use insert instead of append to add objects to keep
+    # everything sorted.
+    def insert(self, value):
+        index = bisect_left(self, value)
+        self.rotate(-index)
+        self.appendleft(value)
+        self.rotate(index)
+
+class SortingRingBuffer(RingBuffer):
+    def __init__(self, size=8192*4):
+        RingBuffer.__init__(self, size)
+        # Replace self.chunks deque() with SortedDeque()
+        self.chunks = SortedDeque()
+        self.segments = 0
+        self.counter = 0
+
+    @property
+    def _pending_segments(self):
+        # Wait for at least 3 segments to have a decent order.
+        if self.segments < 3:
+            return True
+        segment_list = [seg.num for seg in self.chunks]
+        if len(segment_list) < 1:
+            return True
+        missing = set(
+            range(
+                segment_list[0],
+                segment_list[len(segment_list)-1]
+            )[1:]
+        ) - set(segment_list)
+        # In case we 100% lost a segment, just popleft until everything
+        # gets aligned again.
+        if len(missing) != 0:
+            if self.segments > 10 and self.counter > 2:
+                self.chunks.popleft()
+                self.counter = 0
+                # wtb a logger around here!.
+                #print >>sys.stderr, "pending!", self.segments, missing
+            self.counter += 1
+            return True
+        else:
+            self.counter = 0
+            return False
+
+    def _check_events(self):
+        # XXX The length check may be redundant...
+        if not self._pending_segments and self.length > 0:
+            self.event_used.set()
+        else:
+            self.event_used.clear()
+
+        if self.is_full:
+            self.event_free.clear()
+        else:
+            self.event_free.set()
+
+    # Our own _iterate_chunks, it's the same minus Chunk(deque.popleft()).
+    def _iterate_segments(self, size):
+        bytes_left = size
+
+        while bytes_left:
+            try:
+                current_chunk = (self.current_chunk or self.chunks.popleft())
+            except IndexError:
+                break
+
+            data = current_chunk.read(bytes_left)
+            bytes_left -= len(data)
+
+            if current_chunk.empty:
+                self.current_chunk = None
+                self.segments -= 1
+            else:
+                self.current_chunk = current_chunk
+
+            yield data
+
+    # Must call _iterate_segments instead of _iterate_chunks.
+    def _read(self, size=-1):
+        if size < 0 or size > self.length:
+            size = self.length
+
+        if not size:
+            return b""
+
+        data = b"".join(self._iterate_segments(size))
+        self.length -= len(data)
+
+        return data
+
+    # Main override of read()
+    def read(self, size=-1, block=True, timeout=None):
+        if block and not self.closed:
+            self.event_used.wait(timeout)
+
+            # If the event is still not set it's a timeout
+            if not self.event_used.is_set() and self.length == 0:
+                raise IOError("Read timeout")
+
+        with self.buffer_lock:
+            data = self._read(size)
+            self._check_events()
+
+        return data
+
+    # Write now accepts a new argument, "sequence number" which is used
+    # to create the Sequence() object that gets inserted into the 
+    # SortedDeque().
+    def write(self, data, seqnum=0):
+        if self.closed:
+            return
+
+        data_left = len(data)
+        data_total = len(data)
+
+        while data_left > 0:
+            self.event_free.wait()
+
+            if self.closed:
+                return
+
+            with self.buffer_lock:
+                write_len = min(self.free, data_left)
+                written = data_total - data_left
+                # Instead of Buffer.write(), directly use SortedDeque.insert()
+                if not self.closed:
+                    # Copy so that original buffer may be reused
+                    data = bytes(data[written:written+write_len])  
+                    # Couple together the data buffer and sequence number
+                    self.chunks.insert(Segment(seqnum, data))
+                    self.length += len(data)
+                    self.segments += 1
+                data_left -= write_len
+
+                self._check_events()
+
+__all__ = ["Buffer", "RingBuffer", "SortingRingBuffer"]
