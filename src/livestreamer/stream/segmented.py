@@ -1,7 +1,7 @@
 from threading import Thread, Event
 
 from .stream import StreamIO
-from ..buffers import RingBuffer
+from ..buffers import SortingRingBuffer
 from ..compat import queue
 
 
@@ -21,6 +21,8 @@ class SegmentedStreamWorker(Thread):
         self.session = reader.stream.session
         self.logger = reader.logger
 
+        self._last = 0
+        self._total_threads = self.session.get_option("hls-download-threads")
         self._wait = None
 
         Thread.__init__(self)
@@ -52,12 +54,25 @@ class SegmentedStreamWorker(Thread):
         return
         yield
 
+    def _distribute_segment(self, segment):
+        # Simple segment delivery to each thread, 
+        # a None segment would mean shutdown.
+        if segment is None:
+            for thread in self.writer:
+                thread.put(segment)
+            return
+        self.writer[self._last].put(segment)
+        if self._last == (self._total_threads - 1):
+            self._last = 0
+        else:
+            self._last += 1
+
     def run(self):
         for segment in self.iter_segments():
-            self.writer.put(segment)
+            self._distribute_segment(segment)
 
         # End of stream, tells the writer to exit
-        self.writer.put(None)
+        self._distribute_segment(None)
         self.close()
 
 
@@ -128,31 +143,44 @@ class SegmentedStreamReader(StreamIO):
         self.session = stream.session
         self.stream = stream
         self.timeout = timeout
+        self.writer = []
 
     def open(self):
         buffer_size = self.session.get_option("ringbuffer-size")
-        self.buffer = RingBuffer(buffer_size)
-        self.writer = self.__writer__(self)
+        downloader_threads = self.session.get_option("hls-download-threads")
+        self.buffer = SortingRingBuffer(buffer_size)
+        for i in range(downloader_threads):
+            self.writer.append(self.__writer__(self))
         self.worker = self.__worker__(self)
 
-        self.writer.start()
+        for thread in self.writer:
+            thread.start()
         self.worker.start()
 
     def close(self):
         self.worker.close()
-        self.writer.close()
+        for thread in self.writer:
+            thread.close()
 
-        for thread in (self.worker, self.writer):
+        for thread in [self.worker] + self.writer:
             if thread.is_alive():
                 thread.join()
 
         self.buffer.close()
 
+    def _any_alive(self):
+        # return is_alive() for any writer thread that's still running.
+        alive = False
+        for thread in self.writer:
+            if not alive:
+                alive = thread.is_alive()
+        return alive
+
     def read(self, size):
         if not self.buffer:
             return b""
 
-        return self.buffer.read(size, block=self.writer.is_alive(),
+        return self.buffer.read(size, block=self._any_alive(),
                                 timeout=self.timeout)
 
 

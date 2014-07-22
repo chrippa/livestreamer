@@ -52,7 +52,8 @@ class Livestreamer(object):
             "rtmp-timeout": 60.0,
             "rtmp-rtmpdump": is_win32 and "rtmpdump.exe" or "rtmpdump",
             "rtmp-proxy": None,
-            "subprocess-errorlog": False
+            "subprocess-errorlog": False,
+            "hls-download-threads": 1
         })
         self.plugins = {}
         self.logger = Logger()
