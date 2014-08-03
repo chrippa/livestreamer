@@ -6,7 +6,6 @@ from livestreamer.plugin.api.utils import parse_json
 from livestreamer.stream import HTTPStream
 
 API_URL = "http://www.douyutv.com/api/client/room/{0}"
-SWF_URL = "http://staticlive.douyutv.com/common/simplayer/WebRoom.swf?v=2903.3"
 
 _url_re = re.compile("""
     http(s)?://(www\.)?douyutv.com
