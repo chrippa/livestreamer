@@ -15,14 +15,14 @@ _url_re = re.compile("""
 
 _room_schema = validate.Schema(
     {
-        "data": {
+        "data": validate.any(None, {
             "show_status": validate.all(
                 validate.text,
                 validate.transform(int)
             ),
             "rtmp_url": validate.text,
             "rtmp_live": validate.text
-        }
+        })
     }
 )
 
@@ -41,10 +41,14 @@ class Douyutv(Plugin):
 
         channel = match.group("channel")
         res = http.get(API_URL.format(channel))
-        room = http.json(res, schema=_room_schema)["data"]
+        room = http.json(res, schema=_room_schema)
+        if not room["data"]:
+            return
+
+        room = room["data"]
         if room["show_status"] != 1: # 1 is live, 2 is offline
             return
-        print(room)
+
         streams = {
             "live": HTTPStream(self.session, room["rtmp_url"] + "/" + room["rtmp_live"])
         }
