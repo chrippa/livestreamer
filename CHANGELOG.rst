@@ -1,5 +1,139 @@
-Version 1.8.0
--------------
+Version 1.10.0 (Under development)
+----------------------------------
+
+Bug fixes:
+ - The HDS options added in 1.8.0 where never actually applied when
+   used via the CLI, oops.
+ - Fixed default player paths not expanding ~, patch by @medina. (#484)
+
+CLI:
+ - Added :option:`--hds-segment-threads` option.
+ - Added :option:`--hls-segment-threads` option.
+ - Added :option:`--stream-segment-attempts` option.
+ - Added :option:`--stream-segment-threads` option.
+ - Added :option:`--stream-segment-timeout` option.
+ - Added :option:`--stream-timeout` option.
+ - Deprecated the :option:`--jtv-cookie` option.
+ - Deprecated the :option:`--jtv-password` option.
+ - Significantly improved the status line printed while writing a
+   stream to a file. (#462)
+
+Plugins:
+ - Added plugin for goodgame.ru (goodgame), patch by @eltiren. (#466)
+ - Added plugin for gaminglive.tv (gaminglive), patch by @chhe. (#468)
+ - Added plugin for douyutv.com (douyutv), patch by @nixxquality. (#469)
+ - Added plugin for NHK World (nhkworld).
+ - Removed plugin: justintv
+ - afreecatv: Updated for service changes. (#488)
+ - hitbox: Added support for HLS videos.
+ - ustreamtv: Fixed regression that caused channels using RTMP streams to fail.
+
+API:
+ - Added new session option: ``hds-segment-threads``.
+ - Added new session option: ``hls-segment-threads``.
+ - Added new session option: ``stream-segment-attempts``.
+ - Added new session option: ``stream-segment-threads``.
+ - Added new session option: ``stream-segment-timeout``.
+ - Added new session option: ``stream-timeout``.
+
+
+Version 1.9.0 (2014-07-22)
+--------------------------
+
+General:
+ - **Dropped support for Python 3.2.** This is due to missing features
+   which are necessary for this projects progression.
+ - `singledispatch <https://pypi.python.org/pypi/singledispatch>`_ is now a
+   dependency on Python <3.4.
+
+Bug fixes:
+ - Handle bad input data better in parse_json/xml. (#440)
+ - Handle bad input data in config files. (#432)
+ - Fixed regression causing rtmpdump proxies to have no effect.
+
+CLI:
+ - Improved :option:`--help` significantly, more readable and more content.
+ - Added :option:`--config` option.
+ - Added :option:`--stream-url` option. (#281)
+ - Added support for K and M suffixes to the :option:`--ringbuffer-size` option.
+ - Added support for loading config files based on plugin.
+ - Added ~/Applications to the search path for VLC on Mac OS X, patch by @maxnordlund. (#454)
+ - Deprecated :option:`--best-stream-default` and added :option:`--default-stream`
+   as a more flexible replacement. (#381)
+ - Will now only warn about newer versions available every 6 hours.
+
+Plugins:
+ - Many plugins have been refactored to use the validation API and better coding standards.
+ - Added plugin for Aftonbladet (aftonbladet).
+ - Added plugin for ARD Live (ard_live), patch by @MasterofJOKers. (#419)
+ - Added plugin for ARD Mediathek (ard_mediathek), patch by @yeeeargh. (#421)
+ - Added plugin for Connect Cast (connectcast). (#423)
+ - Added plugin for Danmarks Radio (drdk).
+ - Added plugin for DOMMUNE (dommune).
+ - Added plugin for TV4 Play (tv4play).
+ - Added plugin for VGTV (vgtv), patch by @jantore. (#435)
+ - Removed plugin: cast3d
+ - Removed plugin: freedocast
+ - Removed plugin: hashd
+ - Removed plugin: ongamenet
+ - afreecatv: Updated for service changes. (#412, #413)
+ - dailymotion: Added support for source streams, patch by @kasper93. (#428)
+ - euronews: Added support for videos.
+ - nrk: Added support for radio.nrk.no, patch by @jantore. (#433)
+ - picarto: Updated for service changes. (#431)
+ - twitch: Added support for audio only streams, patch by @CommanderRoot. (#411)
+ - viasat: Added support for HDS streams.
+ - viasat: Added support for viagame.com.
+
+API:
+ - Added :func:`Livestreamer.streams` method.
+ - Added :func:`livestreamer.streams` function.
+ - Renamed :func:`Plugin.get_streams` to :func:`Plugin.streams`.
+
+Plugin API:
+ - Added a validation API to make validating data easier and safer.
+
+
+Version 1.8.2 (2014-05-30)
+--------------------------
+
+Bug fixes:
+ - Fixed regression in loading config from non-ascii paths on Python 2.
+
+Plugins:
+ - azubutv: Update for service changes, patch by Gapato. (#399)
+ - dailymotion: Added support for VODs, patch by Gapato. (#402)
+ - hitbox: Fixed a issue where the correct streaming server was not used.
+
+Streams:
+ - hls: Handle playlists that redirect. (#405)
+
+
+Version 1.8.1 (2014-05-18)
+--------------------------
+
+General:
+ - Added a wheel package to PyPi for speedier installation via pip.
+
+Bug fixes:
+ - hls: Handle encrypted segments that are invalid length (not multiple by 16). (#365)
+
+Plugins:
+ - Added plugin for Furstream, patch by Pascal Romahn. (#360)
+ - Added plugin for Viasat's play sites (tv6play.se, etc). (#378)
+ - Added plugin for ZDFmediathek, patch by Pascal Romahn. (#360)
+ - azubutv: Updated for service changes. (#373)
+ - crunchyroll: Correctly handle unicode errors, patch by Agustin Carrasco. (#387, #388)
+ - filmon: Updated for service changes, patch by Athanasios Oikonomou. (#375)
+ - hitbox: Updated for service changes.
+ - ilive: Updated for service changes, patch by Athanasios Oikonomou. (#376)
+ - svtplay: Added support for SVT Flow.
+ - twitch: Now uses the beta API on beta.twitch.tv URLs. (#391)
+ - ustream: Correctly handle UHS streams containing only video or audio.
+
+
+Version 1.8.0 (2014-04-21)
+--------------------------
 
 CLI:
  - Added option: ``--no-version-check``
@@ -77,8 +211,8 @@ API:
  - Renamed option ``rtmpdump`` to ``rtmp-rtmpdump``.
 
 
-Version 1.7.5
--------------
+Version 1.7.5 (2014-03-07)
+--------------------------
 
 Plugins:
  - filmon: Added VOD support, patch by Athanasios Oikonomou.
@@ -95,8 +229,8 @@ Other:
    Builds are available here: http://livestreamer-builds.s3.amazonaws.com/builds.html
 
 
-Version 1.7.4
--------------
+Version 1.7.4 (2014-02-28)
+--------------------------
 
 Plugins:
  - Added plugin for MLG.tv. (#275)
@@ -118,8 +252,8 @@ Bug fixes:
  - Avoid a ResourceWarning when using ``--player-continuous-http``, patch by Martin Panter. (#296)
 
 
-Version 1.7.3
--------------
+Version 1.7.3 (2014-01-31)
+--------------------------
 
 Plugins:
  - Added plugin for hitbox.tv, patch by t0mm0. (#248)
@@ -138,8 +272,8 @@ Bug fixes:
  - hls: Now remembers cookies set by variant playlist response. (#258)
 
 
-Version 1.7.2
--------------
+Version 1.7.2 (2013-12-17)
+--------------------------
 
 CLI:
  - The ``--twitch-legacy-names`` option is now deprecated.
@@ -160,8 +294,8 @@ Bug fixes:
  - Fixed issue with spaces in default player path, patch by John Peterson. (#237)
 
 
-Version 1.7.1
--------------
+Version 1.7.1 (2013-12-07)
+--------------------------
 
 Plugins:
  - Added FilmOn Social TV plugin by John Peterson. (#225)
@@ -180,8 +314,8 @@ Bug fixes:
  - setup.py now forces requests 1.x on Python <2.6.3. (#219)
 
 
-Version 1.7.0
--------------
+Version 1.7.0 (2013-11-07)
+--------------------------
 
 CLI:
  - Added a ``--player-no-close`` option.
@@ -222,16 +356,16 @@ Bug fixes:
  - Fixed bytes-serialization when using ``--json``.
 
 
-Version 1.6.1
--------------
+Version 1.6.1 (2013-10-07)
+--------------------------
 
 Bug fixes:
  - CLI: Fixed broken ``--player-http`` and ``--player-continuous-http`` on Windows.
  - CLI: Fixed un-quoted player paths containing backslashes being broken.
 
 
-Version 1.6.0
--------------
+Version 1.6.0 (2013-09-29)
+--------------------------
 
 General:
  - All stream names are now forced to lowercase to avoid issues with
@@ -267,15 +401,15 @@ Bug fixes:
  - Fixed HTTPStream with headers breaking ``--json`` on Python 3.
 
 
-Version 1.5.2
--------------
+Version 1.5.2 (2013-08-27)
+--------------------------
 
 Plugins:
  - Twitch/Justin.tv: Fix stream names.
 
 
-Version 1.5.1
--------------
+Version 1.5.1 (2013-08-13)
+--------------------------
 
 Plugins:
  - Added plugin for Filmon.
@@ -287,8 +421,8 @@ Bug fixes:
    to subprocesses.
 
 
-Version 1.5.0
--------------
+Version 1.5.0 (2013-07-18)
+--------------------------
 
 CLI:
  - Handle SIGTERM as SIGINT.
@@ -317,8 +451,8 @@ Plugins:
  - Youtube Live: Improved stream names.
 
 
-Version 1.4.5
--------------
+Version 1.4.5 (2013-05-11)
+--------------------------
 
 Plugins:
  - Twitch/Justin.tv: Fixed mobile transcode request never happening.
@@ -329,16 +463,16 @@ Streams:
  - HLS: Fixed potential crash when getting a invalid playlist.
 
 
-Version 1.4.4
--------------
+Version 1.4.4 (2013-05-03)
+--------------------------
 
 Plugins:
  - Twitch/Justin.tv: Fixed possible crash on Python 3.
  - Ilive.to: HTML parsing fixes by Sam Edwards.
 
 
-Version 1.4.3
--------------
+Version 1.4.3 (2013-05-01)
+--------------------------
 
 CLI:
  - Major refactoring of the code base.
@@ -373,8 +507,8 @@ Bug fixes:
  - Properly fixed named pipe support on Windows.
 
 
-Version 1.4.2
--------------
+Version 1.4.2 (2013-03-01)
+--------------------------
 
 CLI:
  - Attempt to find VLC locations on OS X and Windows.
@@ -413,8 +547,8 @@ API:
  - Improved docstrings.
 
 
-Version 1.4.1
--------------
+Version 1.4.1 (2012-12-20)
+--------------------------
 
 CLI:
  - Added --ringbuffer-size option.
@@ -436,8 +570,8 @@ General:
  - Bumped sh version requirement to 1.07.
 
 
-Version 1.4
------------
+Version 1.4 (2012-11-23)
+------------------------
 
 CLI:
  - Added --rtmpdump-proxy option.

@@ -155,6 +155,8 @@ class FLVTagConcat(object):
                     tag.data.value["duration"] = self.duration
                 elif "duration" in tag.data.value:
                     del tag.data.value["duration"]
+            else:
+                return False
 
         return True
 
@@ -242,7 +244,8 @@ class FLVTagConcatWorker(Thread):
         self.error = None
         self.stream = stream
         self.stream_iterator = iterator
-        self.concater = FLVTagConcat(stream.duration, stream.tags)
+        self.concater = FLVTagConcat(stream.duration, stream.tags,
+                                     **stream.concater_params)
 
         Thread.__init__(self)
         self.daemon = True
@@ -250,7 +253,10 @@ class FLVTagConcatWorker(Thread):
     def run(self):
         for fd in self.stream_iterator:
             try:
-                for chunk in self.concater.iter_chunks(fd):
+                chunks = self.concater.iter_chunks(
+                    fd, skip_header=self.stream.skip_header
+                )
+                for chunk in chunks:
                     self.stream.buffer.write(chunk)
 
                     if not self.running:
@@ -274,12 +280,15 @@ class FLVTagConcatIO(IOBase):
     __worker__ = FLVTagConcatWorker
     __log_name__ = "stream.flv_concat"
 
-    def __init__(self, session, duration=None, tags=[], timeout=30):
+    def __init__(self, session, duration=None, tags=[], skip_header=None,
+                 timeout=30, **concater_params):
         self.session = session
         self.timeout = timeout
         self.logger = session.logger.new_module(self.__log_name__)
 
+        self.concater_params = concater_params
         self.duration = duration
+        self.skip_header = skip_header
         self.tags = tags
 
     def open(self, iterator):
@@ -298,7 +307,7 @@ class FLVTagConcatIO(IOBase):
             return b""
 
         if self.worker.error:
-            raise self.filler.error
+            raise self.worker.error
 
         return self.buffer.read(size, block=self.worker.is_alive(),
                                 timeout=self.timeout)
