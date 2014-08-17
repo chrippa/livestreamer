@@ -30,6 +30,7 @@ GOMeXP              Yes     --
 Hashd.tv            Yes     Yes
 Hitbox.tv           Yes     Yes
 ILive               Yes     --
+LetOn.tv            Yes     --
 Livestation         Yes     --
 Livestream          Yes     --    Both new and old site supported.
 Mips                Yes     --    Requires rtmpdump with K-S-V patches.
