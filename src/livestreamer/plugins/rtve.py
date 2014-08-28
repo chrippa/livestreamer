@@ -1,5 +1,8 @@
 import re
 
+import requests
+
+from livestreamer.exceptions import PluginError
 from livestreamer.plugin import Plugin
 from livestreamer.stream import HLSStream
 
@@ -35,6 +38,12 @@ class Rtve(Plugin):
     def _get_streams(self):
         stream_id = _id_map[self.channel_path]
         hls_url = "http://iphonelive.rtve.es/{0}_LV3_IPH/{0}_LV3_IPH.m3u8".format(stream_id)
+
+        # Check if the stream is available
+        response = requests.head(hls_url)
+        if response.status_code == 404:
+            raise PluginError('The program is not available due to rights restrictions.')
+
         return HLSStream.parse_variant_playlist(self.session, hls_url)
 
 __plugin__ = Rtve
