@@ -94,7 +94,7 @@ _url_re = re.compile("""
     http(s)?://(\w+.)?
     (youtube.com|youtu.be)
     (?:
-        /(watch.+v=|embed/|v/)
+        /(watch.+v=|embed/|v/)?
         (?P<video_id>[^/?&#]+)
     )?
     (?:
