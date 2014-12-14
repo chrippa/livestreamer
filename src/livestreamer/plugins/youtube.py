@@ -1,4 +1,5 @@
 import re
+from livestreamer.compat import unquote
 
 from livestreamer.plugin import Plugin, PluginError
 from livestreamer.plugin.api import http, validate
@@ -94,7 +95,8 @@ _url_re = re.compile("""
     http(s)?://(\w+.)?
     (youtube.com|youtu.be)
     (?:
-        /(watch.+v=|embed/|v/)
+        (/.*)?
+        /(watch.+v=|embed/|v/)?
         (?P<video_id>[^/?&#]+)
     )?
     (?:
@@ -106,7 +108,7 @@ _url_re = re.compile("""
 class YouTube(Plugin):
     @classmethod
     def can_handle_url(self, url):
-        return _url_re.match(url)
+        return _url_re.match(unquote(url))
 
     @classmethod
     def stream_weight(cls, stream):
@@ -142,7 +144,7 @@ class YouTube(Plugin):
             return video_id
 
     def _get_stream_info(self, url):
-        match = _url_re.match(url)
+        match = _url_re.match(unquote(url))
         user = match.group("user")
 
         if user:
