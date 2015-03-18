@@ -464,7 +464,6 @@ class HDSStream(Stream):
             request_params["params"].update(params)
 
         for media in manifest.findall("media"):
-            import pdb ; pdb.set_trace()
             url = media.attrib.get("url")
             # Remove potentially present parameter in media url that break
             # fragment url construction ; Example ?hls_no_audio=1
