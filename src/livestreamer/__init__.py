@@ -12,8 +12,7 @@ Full documentation is available at http://docs.livestreamer.io/.
 
 
 __title__ = "livestreamer"
-__version__ = "1.12.0"
-__license__ = "Simplified BSD"
+__version__ = ""__license__ = "Simplified BSD"
 __author__ = "Christopher Rosell"
 __copyright__ = "Copyright 2011-2015 Christopher Rosell"
 __credits__ = [
@@ -67,3 +66,7 @@ from .api import streams
 from .exceptions import (LivestreamerError, PluginError, NoStreamsError,
                          NoPluginError, StreamError)
 from .session import Livestreamer
+
+from ._version import get_versions
+__version__ = get_versions()['version']
+del get_versions

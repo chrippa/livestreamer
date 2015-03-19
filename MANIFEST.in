@@ -8,3 +8,5 @@ include requirements-docs.txt
 recursive-include docs *
 recursive-include examples *
 recursive-include tests *py
+include versioneer.py
+include src/livestreamer/_version.py
