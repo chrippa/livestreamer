@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+import versioneer
+versioneer.VCS = 'git'
+versioneer.versionfile_source = 'src/livestreamer/_version.py'
+versioneer.versionfile_build = 'livestreamer/_version.py'
+versioneer.tag_prefix = 'v'
+versioneer.parentdir_prefix = 'livestreamer-'
+
 from os import environ
 from os.path import abspath, dirname, join
 from setuptools import setup
@@ -46,7 +53,8 @@ srcdir = join(dirname(abspath(__file__)), "src/")
 sys_path.insert(0, srcdir)
 
 setup(name="livestreamer",
-      version="1.12.0",
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       description="Livestreamer is command-line utility that extracts streams "
                   "from various services and pipes them into a video player of "
                   "choice.",
