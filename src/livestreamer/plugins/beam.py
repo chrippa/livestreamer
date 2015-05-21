@@ -56,10 +56,7 @@ class Beam(Plugin):
         for video in assets["videos"]:
             name = "{0}p".format(video["height"])
             stream = RTMPStream(self.session,{
-                "rtmp"     : "{0}/{1}".format(assets["base"], video["src"]),
-                "rtmp"     : assets["base"],
-                "playpath" : video["src"],
-                "live"     : True
+                "rtmp"     : "{0}/{1}".format(assets["base"], video["src"])
             })
             streams[name] = stream
 
