@@ -1,5 +1,4 @@
 import re
-import sys
 
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
