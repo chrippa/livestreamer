@@ -61,6 +61,7 @@ oldlivestream       original.liv... [3]_ Yes   No    Only mobile streams are sup
 periscope           periscope.tv         Yes   --
 picarto             picarto.tv           Yes   --
 rtve                rtve.es              Yes   No
+ruv                 ruv.is               Yes   Yes   Streams may be geo-restricted to Iceland.
 sbsdiscovery        - kanal5play.se      --    Yes
                     - kanal9play.se
                     - kanal11play.se
