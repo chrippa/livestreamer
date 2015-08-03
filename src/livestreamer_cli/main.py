@@ -425,18 +425,22 @@ def resolve_stream_name(streams, stream_name):
     return stream_name
 
 
-def format_valid_streams(streams):
+def format_valid_streams(plugin, streams):
     """Formats a dict of streams.
 
     Filters out synonyms and displays them next to
     the stream they point to.
+
+    Streams are sorted according to their quality
+    (based on plugin.stream_weight).
 
     """
 
     delimiter = ", "
     validstreams = []
 
-    for name, stream in sorted(streams.items()):
+    for name, stream in sorted(streams.items(),
+                               key=lambda stream: plugin.stream_weight(stream[0])):
         if name in STREAM_SYNONYMS:
             continue
 
@@ -487,7 +491,7 @@ def handle_url():
         args.stream = args.default_stream
 
     if args.stream:
-        validstreams = format_valid_streams(streams)
+        validstreams = format_valid_streams(plugin, streams)
         for stream_name in args.stream:
             if stream_name in streams:
                 console.logger.info("Available streams: {0}", validstreams)
@@ -507,7 +511,7 @@ def handle_url():
         if console.json:
             console.msg_json(dict(streams=streams, plugin=plugin.module))
         else:
-            validstreams = format_valid_streams(streams)
+            validstreams = format_valid_streams(plugin, streams)
             console.msg("Available streams: {0}", validstreams)
 
 
