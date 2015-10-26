@@ -3,7 +3,7 @@ from .util import pack_bytes_into
 
 from collections import namedtuple
 from struct import Struct, error as struct_error
-from inspect import getargspec
+import inspect
 
 (SCRIPT_DATA_TYPE_NUMBER, SCRIPT_DATA_TYPE_BOOLEAN,
  SCRIPT_DATA_TYPE_STRING, SCRIPT_DATA_TYPE_OBJECT,
@@ -1037,7 +1037,20 @@ class AMF3ObjectBase(object):
             amfcls.__name__ = name
 
             if not amfcls.__members__:
-                amfcls.__members__ = getargspec(amfcls.__init__).args[1:]
+                try:
+                    normalargs = inspect.getargspec(amfcls.__init__).args
+                except AttributeError:
+                    allparameters = (inspect
+                                     .signature(amfcls.__init__)
+                                     .parameters
+                                     .values())
+                    def normalargp(arg):
+                        return arg.kind == arg.POSITIONAL_OR_KEYWORD
+                    normalargs = [parameter.name
+                                  for parameter
+                                  in allparameters
+                                  if normalargp(parameter)]
+                anfcls.__members__ = normalargs[1:]
 
             cls._registry[name] = amfcls
 
