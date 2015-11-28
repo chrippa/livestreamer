@@ -5,12 +5,7 @@ from livestreamer.stream import RTMPStream
 
 RTMP_URL = "rtmp://live.us.picarto.tv/golive/{0}"
 
-_url_re = re.compile("""
-    http(s)?://(\w+\.)?picarto.tv
-    /live/(channel|channelhd|multistream).php
-    .+watch=(?P<channel>[^&?/]+)
-""", re.VERBOSE)
-
+_url_re = re.compile("http(s)?://(\w+\.)?picarto.tv/(?P<channel>)[^&?/]+", re.VERBOSE)
 
 class Picarto(Plugin):
     @classmethod
