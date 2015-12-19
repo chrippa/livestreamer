@@ -4,17 +4,15 @@ from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http
 from livestreamer.stream import HLSStream
 
-HLS_URL_FORMAT = "http://hls.goodgame.ru/hls/{0}{1}.m3u8"
+HLS_URL_FORMAT = "http://hls.goodgame.ru/hls/{0}.m3u8"
+API_URL_FORMAT = "http://goodgame.ru/api/getchannelstatus?fmt=json&id={0}"
 QUALITIES = {
     "1080p": "",
-    "720p": "_720",
-    "480p": "_480",
-    "240p": "_240"
 }
 
 _url_re = re.compile("http://(?:www\.)?goodgame.ru/channel/(?P<user>\w+)")
 _stream_re = re.compile(
-    "iframe frameborder=\"0\" width=\"100%\" height=\"100%\" src=\"http://goodgame.ru/player(\d)?\?(\d+)\""
+    "\"stream_id\":\"(\d+)\""
 )
 
 class GoodGame(Plugin):
@@ -28,19 +26,20 @@ class GoodGame(Plugin):
             return True
 
     def _get_streams(self):
-        res = http.get(self.url)
+        match = _url_re.search(self.url)
+        id = match.group(1)
+        url = API_URL_FORMAT.format(id)
+        res = http.get(url)
         match = _stream_re.search(res.text)
         if not match:
             return
 
-        stream_id = match.group(2)
+        stream_id = match.group(1)
+        url = HLS_URL_FORMAT.format(stream_id)
+        if not self._check_stream(url):
+            return
         streams = {}
-        for name, url_suffix in QUALITIES.items():
-            url = HLS_URL_FORMAT.format(stream_id, url_suffix)
-            if not self._check_stream(url):
-                continue
-
-            streams[name] = HLSStream(self.session, url)
+        streams["1080p"] = HLSStream(self.session, url)
 
         return streams
 
