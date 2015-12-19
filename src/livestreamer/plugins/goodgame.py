@@ -12,7 +12,7 @@ QUALITIES = {
 
 _url_re = re.compile("http://(?:www\.)?goodgame.ru/channel/(?P<user>\w+)")
 _stream_re = re.compile(
-    "\"stream_id\":\"(\d+)\""
+    r"iframe frameborder=\\\"0\\\" width=\\\"100%\\\" height=\\\"100%\\\" src=\\\"http:\\/\\/goodgame.ru\\/player\?(\w+)\\"
 )
 
 class GoodGame(Plugin):
