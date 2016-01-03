@@ -45,7 +45,7 @@ def check_file_output(filename, force):
     return FileOutput(filename)
 
 
-def create_output():
+def create_output(title=None):
     """Decides where to write the stream.
 
     Depending on arguments it can be one of these:
@@ -65,6 +65,9 @@ def create_output():
         out = FileOutput(fd=stdout)
     else:
         http = namedpipe = None
+
+        if title is None:
+            title = args.url
 
         if not args.player:
             console.exit("The default player (VLC) does not seem to be "
@@ -86,7 +89,7 @@ def create_output():
         out = PlayerOutput(args.player, args=args.player_args,
                            quiet=not args.verbose_player,
                            kill=not args.player_no_close,
-                           namedpipe=namedpipe, http=http)
+                           namedpipe=namedpipe, http=http, title=title)
 
     return out
 
@@ -239,7 +242,7 @@ def open_stream(stream):
     return stream_fd, prebuffer
 
 
-def output_stream(stream):
+def output_stream(stream, title=None):
     """Open stream, create output and finally write the stream to output."""
     global output
 
@@ -252,7 +255,7 @@ def output_stream(stream):
     else:
         return
 
-    output = create_output()
+    output = create_output(title=title)
 
     try:
         output.open()
@@ -329,6 +332,7 @@ def handle_stream(plugin, streams, stream_name):
 
     stream_name = resolve_stream_name(streams, stream_name)
     stream = streams[stream_name]
+    title = plugin.stream_title()
 
     # Print internal command-line if this stream
     # uses a subprocess.
@@ -378,7 +382,7 @@ def handle_stream(plugin, streams, stream_name):
             else:
                 console.logger.info("Opening stream: {0} ({1})", stream_name,
                                     stream_type)
-                success = output_stream(stream)
+                success = output_stream(stream, title=title)
 
             if success:
                 break

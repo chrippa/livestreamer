@@ -5,7 +5,7 @@ import sys
 
 from time import sleep
 
-from .compat import is_win32, stdout
+from .compat import is_win32, stdout, shlex_quote
 from .constants import DEFAULT_PLAYER_ARGUMENTS
 from .utils import ignored
 
@@ -66,12 +66,13 @@ class FileOutput(Output):
 class PlayerOutput(Output):
     def __init__(self, cmd, args=DEFAULT_PLAYER_ARGUMENTS,
                  filename=None, quiet=True, kill=True,
-                 call=False, http=False, namedpipe=None):
+                 call=False, http=False, namedpipe=None, title=None):
         self.cmd = cmd
         self.args = args
         self.kill = kill
         self.call = call
         self.quiet = quiet
+        self.title = title
 
         self.filename = filename
         self.namedpipe = namedpipe
@@ -105,7 +106,10 @@ class PlayerOutput(Output):
         else:
             filename = "-"
 
-        args = self.args.format(filename=filename)
+        if self.title is None:
+            self.title = filename
+
+        args = self.args.format(filename=filename, title=shlex_quote(self.title))
         cmd = self.cmd
         if is_win32:
             # We want to keep the backslashes on Windows as forcing the user to
