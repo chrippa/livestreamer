@@ -440,7 +440,7 @@ output.add_argument(
     "-R", "--record",
     action="store_true",
     help="""
-    Enable recording the stream while also playing it.
+    When using -o, enable recording the stream while also playing it.
     """
 )
 
