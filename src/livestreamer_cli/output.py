@@ -66,7 +66,7 @@ class FileOutput(Output):
 class PlayerOutput(Output):
     def __init__(self, cmd, args=DEFAULT_PLAYER_ARGUMENTS,
                  filename=None, quiet=True, kill=True,
-                 call=False, http=False, namedpipe=None):
+                 call=False, http=False, namedpipe=None, record=None):
         self.cmd = cmd
         self.args = args
         self.kill = kill
@@ -76,6 +76,7 @@ class PlayerOutput(Output):
         self.filename = filename
         self.namedpipe = namedpipe
         self.http = http
+        self.record = record
 
         if self.namedpipe or self.filename or self.http:
             self.stdin = sys.stdin
@@ -117,6 +118,8 @@ class PlayerOutput(Output):
 
     def _open(self):
         try:
+            if self.record:
+                self.record.open()
             if self.call and self.filename:
                 self._open_call()
             else:
@@ -159,12 +162,18 @@ class PlayerOutput(Output):
         elif not self.filename:
             self.player.stdin.close()
 
+        if self.record:
+            self.record.close()
+
         if self.kill:
             with ignored(Exception):
                 self.player.kill()
         self.player.wait()
 
     def _write(self, data):
+        if self.record:
+            self.record.write(data)
+
         if self.namedpipe:
             self.namedpipe.write(data)
         elif self.http:
