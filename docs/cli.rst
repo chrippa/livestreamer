@@ -239,6 +239,8 @@ Unix-like (POSIX) $XDG_CONFIG_HOME/livestreamer/plugins
 Windows           %APPDATA%\\livestreamer\\plugins
 ================= ====================================================
 
+Alternatively, plugins will also be loaded from the :option:-`plugin-dirs`.
+
 .. note::
 
     If a plugin is added with the same name as a built-in plugin then
