@@ -6,6 +6,7 @@ from .stream import Stream
 from .wrappers import StreamIOThreadWrapper, StreamIOIterWrapper
 from ..exceptions import StreamError
 
+from collections import namedtuple
 
 def normalize_key(keyval):
     key, val = keyval
@@ -15,7 +16,20 @@ def normalize_key(keyval):
 
 
 def valid_args(args):
-    argspec = inspect.getargspec(requests.Request.__init__)
+    try:
+        argspec = inspect.getargspec(requests.Request.__init__)
+    except AttributeError:
+        allparameters = (inspect
+                         .signature(requests.Request.__init__)
+                         .parameters
+                         .values())
+        ArgspecShim = namedtuple('ArgspecShim', ['args'])
+        def normalargp(arg):
+            return arg.kind == arg.POSITIONAL_OR_KEYWORD
+        argspec = ArgspecShim([parameter.name
+                               for parameter
+                               in allparameters
+                               if normalargp(parameter)])
 
     return dict(filter(lambda kv: kv[0] in argspec.args, args.items()))
 
