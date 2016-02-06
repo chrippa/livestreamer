@@ -623,6 +623,16 @@ transport.add_argument(
     """
 )
 transport.add_argument(
+    "--hls-start-time",
+    type=num(int, min=0),
+    metavar="TIME",
+    help="""
+    Seeking time in seconds to start streaming. Used only for hls videos with ending token. 
+
+    Default is 0.
+    """
+)
+transport.add_argument(
     "--ringbuffer-size",
     metavar="SIZE",
     type=filesize,

@@ -49,6 +49,7 @@ class Livestreamer(object):
             "hls-segment-threads": 1,
             "hls-segment-timeout": 10.0,
             "hls-timeout": 60.0,
+            "hls-start-time": 0,
             "http-stream-timeout": 60.0,
             "ringbuffer-size": 1024 * 1024 * 16, # 16 MB
             "rtmp-timeout": 60.0,

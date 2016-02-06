@@ -711,6 +711,9 @@ def setup_options():
     if args.hls_timeout:
         livestreamer.set_option("hls-timeout", args.hls_timeout)
 
+    if args.hls_start_time:
+        livestreamer.set_option("hls-start-time", args.hls_start_time)
+
     if args.hds_live_edge:
         livestreamer.set_option("hds-live-edge", args.hds_live_edge)
 

@@ -120,6 +120,7 @@ class HLSStreamWorker(SegmentedStreamWorker):
         self.playlist_sequence = -1
         self.playlist_sequences = []
         self.playlist_reload_time = 15
+        self.desired_starting_time = self.session.options.get("hls-start-time")
         self.live_edge = self.session.options.get("hls-live-edge")
 
         self.reload_playlist()
@@ -180,7 +181,18 @@ class HLSStreamWorker(SegmentedStreamWorker):
                 edge_sequence = sequences[edge_index]
                 self.playlist_sequence = edge_sequence.num
             else:
-                self.playlist_sequence = first_sequence.num
+                if self.desired_starting_time <= 0:
+                    self.playlist_sequence = first_sequence.num
+                else:
+                    next_sequence_starting_time = 0
+                    target_sequence_num = first_sequence.num
+                    for sequence in sequences:
+                        target_sequence_num = sequence.num
+                        segment = sequence.segment
+                        next_sequence_starting_time += segment.duration
+                        if next_sequence_starting_time > self.desired_starting_time:
+                            break
+                    self.playlist_sequence = target_sequence_num
 
     def valid_sequence(self, sequence):
         return sequence.num >= self.playlist_sequence
