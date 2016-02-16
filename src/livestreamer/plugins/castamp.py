@@ -10,7 +10,6 @@ _url_re = re.compile("http(s)?://(\w+\.)?castamp.com/live/(?P<channel>[^/?]+)")
 _comment_re = re.compile("/\\*(.|[\\r\\n])*\\*/")
 _file_re = re.compile("'file':\s*'(.+)',")
 _streamer_re = re.compile("'streamer':\s*'(.+)',")
-_swf_re = re.compile("'flashplayer':\s*\\\"(.+)\\\",")
 
 class CastAmp(Plugin):
     @classmethod
