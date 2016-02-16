@@ -1,15 +1,38 @@
 import re
 
 from livestreamer.plugin import Plugin
-from livestreamer.plugin.api import http
+from livestreamer.plugin.api import http, validate
 from livestreamer.stream import RTMPStream
 
 EMBED_URL = "http://www.castamp.com/embed.php?c={}"
 
 _url_re = re.compile("http(s)?://(\w+\.)?castamp.com/live/(?P<channel>[^/?]+)")
 _comment_re = re.compile("/\\*(.|[\\r\\n])*\\*/")
-_file_re = re.compile("'file':\s*'(.+)',")
-_streamer_re = re.compile("'streamer':\s*'(.+)',")
+_file_re = re.compile("'file':\s*'(?P<file>.+)',")
+_streamer_re = re.compile("'streamer':\s*'(?P<streamer>.+)',")
+
+_embed_schema = validate.Schema(
+    validate.transform(lambda x: _comment_re.sub("", x)),
+    validate.union({
+        "file": validate.all(
+            validate.transform(_file_re.search),
+            validate.any(
+                None,
+                validate.get("file")
+            ),
+        ),
+        "streamer": validate.all(
+            validate.transform(_streamer_re.search),
+            validate.any(
+                None,
+                validate.all(
+                    validate.get("streamer"),
+                    validate.url(scheme="rtmp")
+                )
+            ),
+        )
+    }),
+)
 
 class CastAmp(Plugin):
     @classmethod
@@ -17,31 +40,23 @@ class CastAmp(Plugin):
         return _url_re.match(url)
 
     def _get_streams(self):
-        channel = _url_re.match (self.url).group (3)
+        channel = _url_re.match(self.url).group("channel")
+        embed_url = EMBED_URL.format(channel)
+        res = http.get(embed_url, schema=_embed_schema)
 
-        embed_url = EMBED_URL.format (channel)
+        if not res["file"] or not res["streamer"]:
+            return
+        if not validate.startswith(channel)(res["file"]):
+            return
 
-        embed_res = http.get (embed_url).text
-        if not embed_res: return
+        rtmp_url = res["streamer"] + "/" + res["file"]
 
-        clean_embed_res = _comment_re.sub ("", embed_res)
-
-        file = _file_re.search (clean_embed_res)
-        if not file: return
-        file = file.group (1)
-
-        streamer = _streamer_re.search (clean_embed_res)
-        if not streamer: return
-        streamer = streamer.group (1)
-
-        rtmp_url = streamer + "/" + file
-
-        stream = RTMPStream (self.session, {
+        stream = RTMPStream(self.session, {
             "rtmp": rtmp_url,
             "pageUrl": embed_url,
             "live": True,
         })
 
-        return dict (live=stream)
+        return dict(live=stream)
 
 __plugin__ = CastAmp
