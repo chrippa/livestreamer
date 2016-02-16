@@ -7,6 +7,7 @@ from time import sleep
 
 from livestreamer.compat import urlparse, urljoin, range
 from livestreamer.exceptions import StreamError, PluginError, NoStreamsError
+from livestreamer.packages.flashmedia.types import ScriptDataReference
 from livestreamer.plugin import Plugin, PluginOptions
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import RTMPStream, HLSStream, HTTPStream, Stream
@@ -71,11 +72,11 @@ _recorded_schema = validate.Schema({
         }]
     )
 })
-_stream_schema = validate.Schema(
-    validate.any({
-        "name": validate.text,
-        "url": validate.text,
-        "streams": validate.all(
+_stream_schema = validate.Schema({
+    "name": validate.text,
+    "url": validate.text,
+    "streams": validate.any(
+        validate.all(
             _amf3_array,
             [{
                 "chunkId": validate.any(int, float),
@@ -89,13 +90,10 @@ _stream_schema = validate.Schema(
                 validate.optional("description"): validate.text,
                 validate.optional("isTranscoded"): bool
             }],
-        )
-    },
-    {
-        "name": validate.text,
-        "varnishUrl": validate.text
-    })
-)
+        ),
+        ScriptDataReference
+    )
+})
 _channel_schema = validate.Schema({
     validate.optional("stream"): validate.any(
         validate.all(
@@ -508,11 +506,11 @@ class UStreamTV(Plugin):
 
         streams = {}
         for provider in channel["stream"]:
-            if provider["name"] == u"uhs_akamai":  # not heavily tested, but got a stream working
-                continue
             provider_url = provider["url"]
             provider_name = provider["name"]
             for stream_index, stream_info in enumerate(provider["streams"]):
+                if not isinstance(stream_info, dict):
+                    continue
                 stream = None
                 stream_height = int(stream_info.get("height", 0))
                 stream_name = stream_info.get("description")
