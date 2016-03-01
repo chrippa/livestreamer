@@ -59,6 +59,7 @@ class ConsoleOutput(object):
             sys.exit(1)
 
     def exit(self, msg, *args, **kwargs):
+        msg = msg.decode("utf-8")
         formatted = msg.format(*args, **kwargs)
 
         if self.json:
