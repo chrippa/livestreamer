@@ -59,7 +59,7 @@ class Douyutv(Plugin):
         match = _url_re.match(self.url)
         channel = match.group("channel")
 
-        ts = int(time.time()/10)
+        ts = int(time.time()/60)
         sign = hashlib.md5(("{0}{1}{2}".format(channel, API_SECRET, ts)).encode("utf-8")).hexdigest()
 
         res = http.get(API_URL.format(channel, ts, sign))
