@@ -20,7 +20,9 @@ class CastAmp(Plugin):
         return _url_re.match(url) or _embed_re.match(url)
 
     def _get_streams(self):
-        channel = _url_re.match(self.url).group("channel")
+        channel = _url_re.match(self.url)
+        if not channel: channel = _embed_re.match(self.url)
+        channel = channel.group("channel")
         embed_url = EMBED_URL.format(channel)
         res = http.get(embed_url)
 
