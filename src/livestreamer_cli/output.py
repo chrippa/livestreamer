@@ -117,7 +117,8 @@ class PlayerOutput(Output):
             cmd = cmd.replace("\\", "\\\\")
             args = args.replace("\\", "\\\\")
 
-        return shlex.split(cmd) + shlex.split(args)
+        split_args = map(lambda s: s.decode('utf8'), shlex.split(args.encode('utf8')))
+        return shlex.split(cmd) + split_args
 
     def _open(self):
         try:

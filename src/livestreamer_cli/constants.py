@@ -4,7 +4,7 @@ from livestreamer import __version__ as LIVESTREAMER_VERSION
 
 from .compat import is_win32
 
-DEFAULT_PLAYER_ARGUMENTS = "--meta-title={title} {filename}"
+DEFAULT_PLAYER_ARGUMENTS = u"--meta-title={title} {filename}"
 
 if is_win32:
     APPDATA = os.environ["APPDATA"]
