@@ -312,10 +312,14 @@ player.add_argument(
       It's usually "-" (stdin), but can also be a URL or a file
       depending on the options used.
 
+    title
+      The title of the specified stream if made available
+      by the stream's plugin, or the stream's URL otherwise.
+
     It's usually enough to use --player instead of this unless you
     need to add arguments after the filename.
 
-    Default is "{0}".
+    Default is '{0}'.
     """.format(DEFAULT_PLAYER_ARGUMENTS)
 )
 player.add_argument(
