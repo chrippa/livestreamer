@@ -37,10 +37,19 @@ if (version_info[0] == 2 and version_info[1] == 6 and version_info[2] < 3):
 else:
     deps.append("requests>=1.0,<3.0")
 
+extras={
+    ':python_version<"2.6.3"': ['requests<2.0'],
+    ':python_version>="2.6.3"': ['requests<3.0'],
+    ':python_version<"2.7"': ['argparse'],
+    ':python_version<"3.2"': ['futures'],
+    ':python_version<"3.4"': ['singledispatch']
+}
+
 # When we build an egg for the Win32 bootstrap we don't want dependency
 # information built into it.
 if environ.get("NO_DEPS"):
     deps = []
+    extras = {}
 
 srcdir = join(dirname(abspath(__file__)), "src/")
 sys_path.insert(0, srcdir)
@@ -60,6 +69,7 @@ setup(name="livestreamer",
           "console_scripts": ["livestreamer=livestreamer_cli.main:main"]
       },
       install_requires=deps,
+      extras_require=extras,
       test_suite="tests",
       classifiers=["Development Status :: 5 - Production/Stable",
                    "Environment :: Console",
