@@ -3,77 +3,64 @@
 import re
 
 from livestreamer.plugin import Plugin
-from livestreamer.stream import RTMPStream, HLSStream
+from livestreamer.stream import HLSStream
 
 from livestreamer.plugin.api import http
 
-RTMP_LIVE_URL = "rtmp://ruv{0}livefs.fplive.net/ruv{0}live-live/stream{1}"
-RTMP_SARPURINN_URL = "rtmp://sipvodfs.fplive.net/sipvod/{0}/{1}{2}.{3}"
-
-HLS_RUV_LIVE_URL = "http://ruvruv-live.hls.adaptive.level3.net/ruv/ruv/index/stream{0}.m3u8"
+HLS_RUV_LIVE_URL = "http://ruv{0}-live.hls.adaptive.level3.net/ruv/{1}/index/stream{2}.m3u8"
 HLS_RADIO_LIVE_URL = "http://sip-live.hds.adaptive.level3.net/hls-live/ruv-{0}/_definst_/live/stream1.m3u8"
-HLS_SARPURINN_URL = "http://sip-ruv-vod.dcp.adaptive.level3.net/{0}/{1}{2}.{3}.m3u8"
+HLS_SARPURINN_URL = "http://sip-ruv-vod.dcp.adaptive.level3.net/{0}/{1}{2}.mp4.m3u8"
 
 
 _live_url_re = re.compile(r"""^(?:https?://)?(?:www\.)?ruv\.is/
-                                (?P<channel_path>
-                                    ruv|
-                                    ras1|
-                                    ras-1|
-                                    ras2|
-                                    ras-2|
-                                    rondo
+                                (?P<stream_id>
+                                    ruv/?$|
+                                    ruv2/?$|
+                                    ruv-2/?$|
+                                    ras1/?$|
+                                    ras2/?$|
+                                    rondo/?$
                                 )
                                 /?
-                                """, re.VERBOSE)
+                           """,
+                          re.VERBOSE
+                         )
 
 _sarpurinn_url_re = re.compile(r"""^(?:https?://)?(?:www\.)?ruv\.is/sarpurinn/
-                                    (?:
+                                    (?P<stream_id>
                                         ruv|
                                         ruv2|
                                         ruv-2|
-                                        ruv-aukaras|
-                                        ras1|
-                                        ras-1|
-                                        ras2|
-                                        ras-2
+                                        ruv-aukaras
                                     )
                                     /
                                     [a-zA-Z0-9_-]+
                                     /
                                     [0-9]+
                                     /?
-                                    """, re.VERBOSE)
+                                """,
+                               re.VERBOSE
+                              )
 
-_rtmp_url_re = re.compile(r"""rtmp://sipvodfs\.fplive.net/sipvod/
-                                (?P<status>
-                                    lokad|
-                                    opid
-                                )
-                                /
-                                (?P<date>[0-9]+/[0-9][0-9]/[0-9][0-9]/)?
-                                (?P<id>[A-Z0-9\$_]+)
-                                \.
-                                (?P<ext>
-                                    mp4|
-                                    mp3
-                                )""", re.VERBOSE)
-
-_id_map = {
-    "ruv": "ruv",
-    "ras1": "ras1",
-    "ras-1": "ras1",
-    "ras2": "ras2",
-    "ras-2": "ras2",
-    "rondo": "ras3"
-}
+_hls_url_re = re.compile(r"""(?:http://)?sip-ruv-vod.dcp.adaptive.level3.net/
+                             (?P<status>
+                                 lokad|
+                                 opid
+                             )
+                             /
+                             (?P<date>[0-9]+/[0-9][0-9]/[0-9][0-9]/)?
+                             (?P<id>[A-Z0-9\$_]+)
+                             \.mp4\.m3u8
+                          """,
+                         re.VERBOSE
+                        )
 
 
 class Ruv(Plugin):
     @classmethod
     def can_handle_url(cls, url):
         if _live_url_re.match(url):
-            return _live_url_re.match(url)
+            return True
         else:
             return _sarpurinn_url_re.match(url)
 
@@ -83,75 +70,45 @@ class Ruv(Plugin):
 
         if live_match:
             self.live = True
-            self.channel_path = live_match.group("channel_path")
+            self.stream_id = live_match.group("stream_id").replace("/", "").replace("-", "")
+
+            if self.stream_id == "rondo":
+                self.stream_id = "ras3"
         else:
             self.live = False
 
     def _get_live_streams(self):
-        stream_id = _id_map[self.channel_path]
-
-        if stream_id == "ruv":
-            qualities_rtmp = ["720p", "480p", "360p", "240p"]
-
-            for i, quality in enumerate(qualities_rtmp):
-                yield quality, RTMPStream(
-                    self.session,
-                    {
-                        "rtmp": RTMP_LIVE_URL.format(stream_id, i+1),
-                        "pageUrl": self.url,
-                        "live": True
-                    }
-                )
-
+        if self.stream_id == "ruv" or self.stream_id == "ruv2":
             qualities_hls = ["240p", "360p", "480p", "720p"]
             for i, quality_hls in enumerate(qualities_hls):
                 yield quality_hls, HLSStream(
                     self.session,
-                    HLS_RUV_LIVE_URL.format(i+1)
+                    HLS_RUV_LIVE_URL.format(self.stream_id, self.stream_id, i+1)
                 )
-
         else:
-            yield "audio", RTMPStream(self.session, {
-                "rtmp": RTMP_LIVE_URL.format(stream_id, 1),
-                "pageUrl": self.url,
-                "live": True
-            })
-
             yield "audio", HLSStream(
                 self.session,
-                HLS_RADIO_LIVE_URL.format(stream_id)
+                HLS_RADIO_LIVE_URL.format(self.stream_id)
             )
 
     def _get_sarpurinn_streams(self):
         res = http.get(self.url)
-        match = _rtmp_url_re.search(res.text)
+        match = _hls_url_re.search(res.text)
 
-        if not match:
-            yield
-
-        token = match.group("id")
-        status = match.group("status")
-        extension = match.group("ext")
-        date = match.group("date")
-        if not date:
-            date = ""
-
-        if extension == "mp3":
-            key = "audio"
-        else:
+        if match:
+            token = match.group("id")
+            status = match.group("status")
+            date = match.group("date")
             key = "576p"
 
-            # HLS on Sarpurinn is currently only available on videos
+            # If date was not found it is "None", but we rather want it to be an empty string
+            if not date:
+                date = ""
+
             yield key, HLSStream(
                 self.session,
-                HLS_SARPURINN_URL.format(status, date, token, extension)
+                HLS_SARPURINN_URL.format(status, date, token)
             )
-
-        yield key, RTMPStream(self.session, {
-            "rtmp": RTMP_SARPURINN_URL.format(status, date, token, extension),
-            "pageUrl": self.url,
-            "live": True
-        })
 
     def _get_streams(self):
         if self.live:
