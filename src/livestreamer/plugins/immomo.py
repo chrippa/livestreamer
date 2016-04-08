@@ -12,7 +12,10 @@ _info_schema = validate.Schema({
     "ec": 200,
     "data": {
         "live": bool,
-        "url": validate.url(scheme="http")
+        "url": validate.any(
+            "",
+            validate.url(scheme="http")
+        )
     }
 })
 
@@ -38,7 +41,7 @@ class Immomo(Plugin):
         res = http.post(CHANNEL_INFO_URI, data=data)
         info = http.json(res, schema=_info_schema)
 
-        if not info["data"]["live"]:
+        if not info["data"]["live"] or info["data"]["url"] == "":
             return
 
         url = info["data"]["url"].rstrip()
