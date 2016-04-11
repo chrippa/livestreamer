@@ -506,8 +506,11 @@ class UStreamTV(Plugin):
 
         streams = {}
         for provider in channel["stream"]:
-            provider_url = provider["url"]
-            provider_name = provider["name"]
+            try:
+                provider_url = provider["url"]
+                provider_name = provider["name"]
+            except KeyError:
+                continue
             for stream_index, stream_info in enumerate(provider["streams"]):
                 if not isinstance(stream_info, dict):
                     continue
