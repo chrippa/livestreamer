@@ -510,8 +510,11 @@ class UStreamTV(Plugin):
         for provider in channel["stream"]:
             if provider["name"] == u"uhs_akamai":  # not heavily tested, but got a stream working
                 continue
-            provider_url = provider["url"]
-            provider_name = provider["name"]
+            try:
+                provider_url = provider["url"]
+                provider_name = provider["name"]
+            except KeyError:
+                continue
             for stream_index, stream_info in enumerate(provider["streams"]):
                 stream = None
                 stream_height = int(stream_info.get("height", 0))
