@@ -24,6 +24,7 @@ azubutv             azubu.tv             Yes   No
 beam                beam.pro             Yes   No
 beattv              be-at.tv             Yes   Yes   Playlist not implemented yet.
 bambuser            bambuser.com         Yes   Yes
+bilibili            live.bilibili.com    Yes   No
 bliptv              blip.tv              --    Yes
 chaturbate          chaturbate.com       Yes   No
 connectcast         connectcast.tv       Yes   Yes
