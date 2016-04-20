@@ -4,9 +4,9 @@ from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import HTTPStream
 
-CHANNEL_INFO_URI = "https://web.immomo.com/webmomo/api/scene/profile/infos"
+CHANNEL_INFO_URI = "https://web.immomo.com/webmomo/api/scene/profile/infosv2"
 
-_url_re = re.compile(r"https://web.immomo.com/live/(?P<rt>\d+)-(?P<rd>\d+)")
+_url_re = re.compile(r"https://web.immomo.com/live/(?P<stid>\d+)")
 
 _info_schema = validate.Schema({
     "ec": 200,
@@ -35,8 +35,7 @@ class Immomo(Plugin):
             return
 
         data = {
-            "rt": match.group("rt"),
-            "rd": match.group("rd")
+            "stid": match.group("stid")
         }
         res = http.post(CHANNEL_INFO_URI, data=data)
         info = http.json(res, schema=_info_schema)
