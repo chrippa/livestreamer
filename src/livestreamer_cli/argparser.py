@@ -271,6 +271,15 @@ general.add_argument(
     action="store_true",
     help=argparse.SUPPRESS
 )
+general.add_argument(
+    "--stop-after",
+    metavar="SECONDS",
+    default=False,
+    type=num(int, min=10),
+    help="""
+    Stop recording after a certain amount of seconds.
+    """
+)
 
 player = parser.add_argument_group("Player options")
 player.add_argument(
