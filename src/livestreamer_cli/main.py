@@ -628,6 +628,7 @@ def setup_console():
 
     # Handle SIGTERM just like SIGINT
     signal.signal(signal.SIGTERM, signal.default_int_handler)
+    signal.signal(signal.SIGALRM, signal.default_int_handler)
 
 
 def setup_http_session():
@@ -867,7 +868,6 @@ def check_version(force=False):
     if force:
         sys.exit()
 
-
 def main():
     setup_args()
     check_root()
@@ -876,6 +876,9 @@ def main():
     setup_config_args()
     setup_console()
     setup_http_session()
+
+    if args.stop_after:
+        signal.alarm(args.stop_after)
 
     if args.version_check or not args.no_version_check:
         with ignored(Exception):
