@@ -750,6 +750,9 @@ def setup_options():
     if args.stream_segment_timeout:
         livestreamer.set_option("stream-segment-timeout", args.stream_segment_timeout)
 
+    if args.stream_segment_size:
+        livestreamer.set_option("stream-segment-size", args.stream_segment_size)
+
     if args.stream_timeout:
         livestreamer.set_option("stream-timeout", args.stream_timeout)
 
