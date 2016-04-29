@@ -71,7 +71,9 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                                          **request_params)
         except StreamError as err:
             self.logger.error("Failed to load segment {0}-{1}: {2}",
-                              *segment.byte_range, err)
+                              segment.byte_range.first_byte_pos,
+                              segment.byte_range.last_byte_pos,
+                              err)
             return self.fetch(segment, retries - 1)
 
     def write(self, segment, result):
