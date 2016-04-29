@@ -5,6 +5,7 @@ from .akamaihd import AkamaiHDStream
 from .hds import HDSStream
 from .hls import HLSStream
 from .http import HTTPStream
+from .segmentedhttp import SegmentedHTTPStream
 from .rtmpdump import RTMPStream
 from .streamprocess import StreamProcess
 from .wrappers import StreamIOWrapper, StreamIOIterWrapper, StreamIOThreadWrapper

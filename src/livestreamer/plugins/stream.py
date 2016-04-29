@@ -2,7 +2,7 @@ from livestreamer.compat import urlparse
 from livestreamer.exceptions import PluginError
 from livestreamer.plugin import Plugin
 from livestreamer.stream import (AkamaiHDStream, HDSStream, HLSStream,
-                                 HTTPStream, RTMPStream)
+                                 HTTPStream, SegmentedHTTPStream, RTMPStream)
 
 import ast
 import re
@@ -13,6 +13,7 @@ PROTOCOL_MAP = {
     "hls": HLSStream,
     "hlsvariant": HLSStream.parse_variant_playlist,
     "httpstream": HTTPStream,
+    "seghttp": SegmentedHTTPStream,
     "rtmp": RTMPStream,
     "rtmpe": RTMPStream,
     "rtmps": RTMPStream,
