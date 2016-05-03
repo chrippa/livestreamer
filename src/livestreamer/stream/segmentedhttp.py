@@ -1,8 +1,5 @@
 from collections import namedtuple
 from functools import partial
-from threading import Thread
-
-import requests
 
 from livestreamer.buffers import RingBuffer
 from .http import HTTPStream
@@ -10,6 +7,7 @@ from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
                         SegmentedStreamWorker)
 from ..exceptions import StreamError
+from requests.exceptions import RequestException
 
 ByteRange = namedtuple("ByteRange", "first_byte_pos last_byte_pos")
 Segment = namedtuple("Segment", "uri byte_range")
@@ -49,6 +47,7 @@ class StreamingResponse:
         self.logger = session.logger.new_module("respstream")
         self.chunk_size = chunk_size
         self.timeout = timeout
+        self.exception = None
         self.future = None
         self.buffered_data = 0
         self.consumed_data = 0
@@ -61,27 +60,41 @@ class StreamingResponse:
         return self
 
     def _stream_fetch(self):
-        self.logger.debug("Started download of segment {0}-{1}",
-                          *self.segment.byte_range)
-        for chunk in self.response.iter_content(self.chunk_size):
-            # Poll for executor shutdown event and terminate download if received
-            if self.executor._shutdown:
-                self.close()
-                return
+        try:
+            self.logger.debug("Started download of segment {0}-{1}",
+                              *self.segment.byte_range)
 
-            self.segment_buffer.write(chunk)
-            self.buffered_data += len(chunk)
+            for chunk in self.response.iter_content(self.chunk_size):
+                # Poll for executor shutdown event and terminate download if received
+                if self.executor._shutdown:
+                    self.close()
+                    return
 
-        self.logger.debug("Download of segment {0}-{1} complete",
-                          *self.segment.byte_range)
+                self.segment_buffer.write(chunk)
+                self.buffered_data += len(chunk)
+
+            self.logger.debug("Download of segment {0}-{1} complete",
+                              *self.segment.byte_range)
+
+        except (RequestException, IOError) as rerr:
+            self.exception = StreamError("Unable to download segment: {0}-{1} ({err})".format(
+                                         self.segment.byte_range.first_byte_pos,
+                                         self.segment.byte_range.last_byte_pos,
+                                         err=rerr))
+            self.exception.err = rerr
+            self.close()
+            return
 
     def read(self, chunk_size):
-        if self.closed:
+        if self.closed and not self.exception:
             return b""
 
         result = self.segment_buffer.read(chunk_size,
                                           block=not self.future.done(),
-                                          timeout=30)
+                                          timeout=self.timeout)
+
+        if self.exception:
+            raise self.exception
 
         self.consumed_data += len(result)
         if self.consumed_data == self.segment_size:
