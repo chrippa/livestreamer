@@ -1,5 +1,6 @@
 from collections import namedtuple
 from functools import partial
+from threading import Event
 
 from livestreamer.buffers import RingBuffer
 from .http import HTTPStream
@@ -39,34 +40,72 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
 
 
 class StreamingResponse:
-    def __init__(self, executor, segment, response, session, chunk_size=8192, timeout=None):
+    def __init__(self, session, executor, segment, request_params,
+                 chunk_size=8192, download_timeout=None, read_timeout=None,
+                 retries=5):
         self.closed = False
+        self.session = session
         self.executor = executor  # Not owned by the streaming response object
         self.segment = segment
-        self.response = response  # Owned by object, must cleanup on close
-        self.logger = session.logger.new_module("stream.resp-stream")
+        self.request_params = request_params
         self.chunk_size = chunk_size
-        self.timeout = timeout
-        self.exception = None
+        self.download_timeout = download_timeout
+        self.read_timeout = read_timeout
+        self.retries = retries
+        self.logger = session.logger.new_module("stream.resp-stream")
         self.future = None
+        self.exception = None
         self.buffered_data = 0
         self.consumed_data = 0
-        self.segment_size = int(response.headers["Content-Length"])
-        # TODO: Implement segment buffer pool
-        self.segment_buffer = RingBuffer(self.segment_size)  # Owned by object, must cleanup on close
+        self.segment_size = self.session.options.get("stream-segment-size")
+        self.segment_buffer = RingBuffer(self.segment_size)
+
+        if download_timeout is None:
+            self.download_timeout = self.session.options.get("stream-segment-timeout")
+        if read_timeout is None:
+            self.read_timeout = self.session.options.get("http-stream-timeout")
 
     def start(self):
-        self.future = self.executor.submit(self._stream_fetch)
+        self.future = self.executor.submit(self._stream_fetch, self.retries)
         return self
 
-    def _stream_fetch(self):
+    def create_request_params(self, segment):
+        request_params = dict(self.request_params)
+        headers = request_params.pop("headers", {})
+
+        headers["Range"] = "bytes={0}-{1}".format(*segment.byte_range)
+
+        request_params["headers"] = headers
+
+        return request_params
+
+    def _stream_fetch(self, retries):
+        if self.executor._shutdown:
+            self.close()
+            return
+
+        if self.closed:
+            return
+
         try:
             self.logger.debug("Started download of segment {0}-{1}",
                               *self.segment.byte_range)
 
-            for chunk in self.response.iter_content(self.chunk_size):
+            request_params = self.create_request_params(self.segment)
+            resp = self.session.http.get(self.segment.uri,
+                                         timeout=self.download_timeout,
+                                         exception=StreamError,
+                                         stream=True,
+                                         **request_params)
+
+            self.segment_size = int(resp.headers["Content-Length"])
+            # TODO: Implement segment buffer pooling
+            self.segment_buffer.resize(self.segment_size)
+
+            for chunk in resp.iter_content(self.chunk_size):
                 # Poll for executor shutdown event and terminate download if received
                 if self.executor._shutdown:
+                    resp.close()
                     self.close()
                     return
 
@@ -76,23 +115,36 @@ class StreamingResponse:
             self.logger.debug("Download of segment {0}-{1} complete",
                               *self.segment.byte_range)
 
-        except (RequestException, IOError) as rerr:
-            self.exception = StreamError("Unable to download segment: {0}-{1} ({err})".format(
-                                         self.segment.byte_range.first_byte_pos,
-                                         self.segment.byte_range.last_byte_pos,
-                                         err=rerr))
-            self.exception.err = rerr
-            self.close()
-            return
+        except (StreamError, RequestException, IOError) as err:
+            exception = StreamError("Unable to download segment: {0}-{1} ({err})".format(
+                                    self.segment.byte_range.first_byte_pos,
+                                    self.segment.byte_range.last_byte_pos,
+                                    err=err))
+            exception.err = err
+            self.logger.error("{0}", exception)
+            if retries:
+                self.logger.error("Retrying segment {0}-{1}",
+                                  *self.segment.byte_range)
+                self._stream_fetch(retries - 1)
+            # Couldn't recover from exception
+            else:
+                self.exception = exception
+                self.close()
+                raise self.exception
 
     def read(self, chunk_size):
         if self.closed and not self.exception:
             return b""
 
-        result = self.segment_buffer.read(chunk_size,
-                                          block=not self.future.done(),
-                                          timeout=self.timeout)
+        try:
+            result = self.segment_buffer.read(chunk_size,
+                                              block=not self.future.done(),
+                                              timeout=self.read_timeout)
+        except IOError as err:
+            raise StreamError("Failed to read data from stream: {0}".format(err))
 
+        # The streaming response encountered an unrecoverable exception in one
+        # of it's download threads. The stream should crash at this point
         if self.exception:
             raise self.exception
 
@@ -114,7 +166,6 @@ class StreamingResponse:
                               *self.segment.byte_range)
 
         self.closed = True
-        self.response.close()
         self.segment_buffer.close()
 
 
@@ -124,38 +175,20 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
         self.chunk_size = chunk_size
         self.segment_size = reader.segment_size
 
-    def create_request_params(self, segment):
-        request_params = dict(self.reader.request_params)
-        headers = request_params.pop("headers", {})
-
-        headers["Range"] = "bytes={0}-{1}".format(*segment.byte_range)
-
-        request_params["headers"] = headers
-
-        return request_params
-
-    def fetch(self, segment, retries=None):
+    def fetch(self, segment, retries=5):
         if self.closed or not retries:
             return
 
-        try:
-            request_params = self.create_request_params(segment)
-            resp = self.session.http.get(segment.uri,
-                                         timeout=self.timeout,
-                                         exception=StreamError,
-                                         stream=True,  # This must be true to use with executor
-                                         **request_params)
-            return StreamingResponse(self.executor, segment, resp, self.session).start()
-        except StreamError as err:
-            self.logger.error("Failed to open segment {0}-{1} for download: {2}",
-                              segment.byte_range.first_byte_pos,
-                              segment.byte_range.last_byte_pos,
-                              err)
-            return self.fetch(segment, retries - 1)
+        return StreamingResponse(self.session, self.executor, segment,
+                                 self.reader.request_params,
+                                 retries=retries,
+                                 download_timeout=self.timeout,
+                                 read_timeout=self.reader.timeout,
+                                 ).start()
 
     def write(self, segment, result):
         try:
-            self.logger.debug("Streaming segment {0}-{1} to buffer",
+            self.logger.debug("Streaming segment {0}-{1} to output buffer",
                               *segment.byte_range)
 
             for chunk in result.iter_content(self.chunk_size):
@@ -165,9 +198,7 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                               *segment.byte_range)
 
         except StreamError as err:
-            self.logger.error("Download of segment {0}-{1} failed: {2}",
-                              segment.byte_range.first_byte_pos,
-                              segment.byte_range.last_byte_pos,
+            self.logger.error("Unable to recover stream: {0}",
                               err)
             self.close()
 
