@@ -24,7 +24,7 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
         if pos > 0:
             self.logger.debug("Received seek. Seek to pos: {0}", pos)
 
-        while not self.closed:
+        while not self.closed and not self.writer.closed:
             segment = Segment(self.stream.url,
                               ByteRange(pos, pos + self.segment_size - 1))
             self.logger.debug("Adding segment {0}-{1} to queue",
@@ -44,7 +44,7 @@ class StreamingResponse:
         self.executor = executor  # Not owned by the streaming response object
         self.segment = segment
         self.response = response  # Owned by object, must cleanup on close
-        self.logger = session.logger.new_module("respstream")
+        self.logger = session.logger.new_module("stream.resp-stream")
         self.chunk_size = chunk_size
         self.timeout = timeout
         self.exception = None
@@ -147,21 +147,29 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                                          **request_params)
             return StreamingResponse(self.executor, segment, resp, self.session).start()
         except StreamError as err:
-            self.logger.error("Failed to load segment {0}-{1}: {2}",
+            self.logger.error("Failed to open segment {0}-{1} for download: {2}",
                               segment.byte_range.first_byte_pos,
                               segment.byte_range.last_byte_pos,
                               err)
             return self.fetch(segment, retries - 1)
 
     def write(self, segment, result):
-        self.logger.debug("Streaming segment {0}-{1} to buffer",
-                          *segment.byte_range)
+        try:
+            self.logger.debug("Streaming segment {0}-{1} to buffer",
+                              *segment.byte_range)
 
-        for chunk in result.iter_content(self.chunk_size):
-            self.reader.buffer.write(chunk)
+            for chunk in result.iter_content(self.chunk_size):
+                self.reader.buffer.write(chunk)
 
-        self.logger.debug("Streaming of segment {0}-{1} to buffer complete",
-                          *segment.byte_range)
+            self.logger.debug("Streaming of segment {0}-{1} to buffer complete",
+                              *segment.byte_range)
+
+        except StreamError as err:
+            self.logger.error("Download of segment {0}-{1} failed: {2}",
+                              segment.byte_range.first_byte_pos,
+                              segment.byte_range.last_byte_pos,
+                              err)
+            self.close()
 
 
 class SegmentedHTTPStreamReader(SegmentedStreamReader):
