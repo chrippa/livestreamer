@@ -320,7 +320,7 @@ class UHSStreamWorker(SegmentedStreamWorker):
 
         chunk_id = int(result["chunkId"])
         chunk_offset = int(result["offset"])
-        chunk_range = dict(map(partial(map, int), chunk_range.items()))
+        chunk_range = {int(k): str(v) for k, v in chunk_range.items()}
 
         self.chunk_ranges.update(chunk_range)
         self.chunk_id_min = sorted(chunk_range)[0]
