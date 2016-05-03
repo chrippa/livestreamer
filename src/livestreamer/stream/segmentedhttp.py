@@ -40,6 +40,71 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
                 return
 
 
+class StreamingResponse:
+    def __init__(self, executor, segment, response, session, chunk_size=8192, timeout=None):
+        self.closed = False
+        self.executor = executor  # Not owned by the streaming response object
+        self.segment = segment
+        self.response = response  # Owned by object, must cleanup on close
+        self.logger = session.logger.new_module("respstream")
+        self.chunk_size = chunk_size
+        self.timeout = timeout
+        self.future = None
+        self.buffered_data = 0
+        self.consumed_data = 0
+        self.segment_size = int(response.headers["Content-Length"])
+        # TODO: Implement segment buffer pool
+        self.segment_buffer = RingBuffer(self.segment_size)  # Owned by object, must cleanup on close
+
+    def start(self):
+        self.future = self.executor.submit(self._stream_fetch)
+        return self
+
+    def _stream_fetch(self):
+        self.logger.debug("Started download of segment {0}-{1}",
+                          *self.segment.byte_range)
+        for chunk in self.response.iter_content(self.chunk_size):
+            # Poll for executor shutdown event and terminate download if received
+            if self.executor._shutdown:
+                self.close()
+                return
+
+            self.segment_buffer.write(chunk)
+            self.buffered_data += len(chunk)
+
+        self.logger.debug("Download of segment {0}-{1} complete",
+                          *self.segment.byte_range)
+
+    def read(self, chunk_size):
+        if self.closed:
+            return b""
+
+        result = self.segment_buffer.read(chunk_size,
+                                          block=not self.future.done(),
+                                          timeout=30)
+
+        self.consumed_data += len(result)
+        if self.consumed_data == self.segment_size:
+            self.close()
+
+        return result
+
+    def iter_content(self, chunk_size):
+        return iter(partial(self.read, chunk_size), b"")
+
+    def close(self):
+        if self.consumed_data == self.segment_size:
+            self.logger.debug("Stream of segment {0}-{1} consumed",
+                              *self.segment.byte_range)
+        else:
+            self.logger.debug("Download of segment {0}-{1} cancelled",
+                              *self.segment.byte_range)
+
+        self.closed = True
+        self.response.close()
+        self.segment_buffer.close()
+
+
 class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
     def __init__(self, reader, chunk_size=8192, **kwargs):
         SegmentedStreamWriter.__init__(self, reader, **kwargs)
@@ -62,10 +127,12 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
 
         try:
             request_params = self.create_request_params(segment)
-            return self.session.http.get(segment.uri,
+            resp = self.session.http.get(segment.uri,
                                          timeout=self.timeout,
                                          exception=StreamError,
+                                         stream=True,  # This must be true to use with executor
                                          **request_params)
+            return StreamingResponse(self.executor, segment, resp, self.session).start()
         except StreamError as err:
             self.logger.error("Failed to load segment {0}-{1}: {2}",
                               segment.byte_range.first_byte_pos,
@@ -74,8 +141,13 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
             return self.fetch(segment, retries - 1)
 
     def write(self, segment, result):
-        self.reader.buffer.write(result.content)
-        self.logger.debug("Download of segment {0}-{1} complete",
+        self.logger.debug("Streaming segment {0}-{1} to buffer",
+                          *segment.byte_range)
+
+        for chunk in result.iter_content(self.chunk_size):
+            self.reader.buffer.write(chunk)
+
+        self.logger.debug("Streaming of segment {0}-{1} to buffer complete",
                           *segment.byte_range)
 
 
