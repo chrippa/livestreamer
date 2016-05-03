@@ -133,7 +133,7 @@ def output_stream_http(plugin, initial_streams, external=False, port=0):
                          "installed. You must specify the path to a player "
                          "executable with --player.")
 
-        server = create_http_server(socket.gethostname())
+        server = create_http_server()
         player = output = PlayerOutput(args.player, args=args.player_args,
                                        filename=server.url,
                                        quiet=not args.verbose_player)
