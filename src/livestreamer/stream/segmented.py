@@ -13,13 +13,15 @@ class SegmentedStreamWorker(Thread):
     writer thread.
     """
 
-    def __init__(self, reader):
+    def __init__(self, reader, initial_seek_pos=0):
         self.closed = False
         self.reader = reader
         self.writer = reader.writer
         self.stream = reader.stream
         self.session = reader.stream.session
         self.logger = reader.logger
+        self.complete_length = reader.complete_length
+        self.initial_seek_pos = initial_seek_pos
 
         self._wait = None
 
@@ -172,20 +174,39 @@ class SegmentedStreamReader(StreamIO):
         StreamIO.__init__(self)
         self.session = stream.session
         self.stream = stream
+        self.complete_length = None
+        self.initial_seek_pos = 0
 
         if not timeout:
             timeout = self.session.options.get("stream-timeout")
 
         self.timeout = timeout
 
-    def open(self):
+    def open(self, seek_pos=0):
+        self.complete_length = self._get_complete_length()
+
         buffer_size = self.session.get_option("ringbuffer-size")
         self.buffer = RingBuffer(buffer_size)
         self.writer = self.__writer__(self)
-        self.worker = self.__worker__(self)
+        self.worker = self.__worker__(self, seek_pos)
 
         self.writer.start()
         self.worker.start()
+
+    def _get_complete_length(self):
+        """Gets the total content length of all media segments. This method
+        will communicate with the stream server to try to work out the content
+        length. The content length may be unavailable, such as when streaming
+        a live stream. In this case the method should return None.
+
+        Should be overridden by the inheriting class if the class supports
+        seek.
+
+        :returns: None for unknown content length.\r\n
+                  The total content length of all media segments
+                  for known content length.
+        """
+        return None
 
     def close(self):
         self.worker.close()

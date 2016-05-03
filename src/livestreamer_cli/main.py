@@ -23,6 +23,8 @@ from .constants import CONFIG_FILES, PLUGINS_DIR, STREAM_SYNONYMS
 from .output import FileOutput, PlayerOutput
 from .utils import NamedPipe, HTTPServer, ignored, progress, stream_to_url
 
+import socket
+
 ACCEPTABLE_ERRNO = (errno.EPIPE, errno.EINVAL, errno.ECONNRESET)
 QUIET_OPTIONS = ("json", "stream_url", "subprocess_cmdline", "quiet")
 
@@ -131,7 +133,7 @@ def output_stream_http(plugin, initial_streams, external=False, port=0):
                          "installed. You must specify the path to a player "
                          "executable with --player.")
 
-        server = create_http_server()
+        server = create_http_server(socket.gethostname())
         player = output = PlayerOutput(args.player, args=args.player_args,
                                        filename=server.url,
                                        quiet=not args.verbose_player)
@@ -151,10 +153,15 @@ def output_stream_http(plugin, initial_streams, external=False, port=0):
         for url in server.urls:
             console.logger.info(" " + url)
 
+    # Listen for request from player on HTTPServer
     for req in iter_http_requests(server, player):
         user_agent = req.headers.get("User-Agent") or "unknown player"
         console.logger.info("Got HTTP request from {0}".format(user_agent))
 
+        # Check for seek
+        seek_pos = server.get_seek_pos(req)
+
+        # Open remote stream for read
         stream_fd = prebuffer = None
         while not stream_fd and (not player or player.running):
             try:
@@ -177,10 +184,25 @@ def output_stream_http(plugin, initial_streams, external=False, port=0):
             try:
                 console.logger.info("Opening stream: {0} ({1})", stream_name,
                                     type(stream).shortname())
-                stream_fd, prebuffer = open_stream(stream)
+                stream_fd, prebuffer = open_stream(stream, seek_pos)
             except StreamError as err:
                 console.logger.error("{0}", err)
 
+        # Enable/Disable seek support on HTTPServer
+        if stream.supports_seek:
+            server.enable_seek(stream.complete_length)
+
+        # Send header for response to player request through local HTTPServer
+        # socket
+        try:
+            server.send_header(req)
+        except socket.error as err:
+            console.logger.error("{0}", err)
+            server.close()
+            continue
+
+        # Continuously read data from remote stream and write out through
+        # local HTTPServer socket
         if stream_fd and prebuffer:
             console.logger.debug("Writing stream to player")
             read_stream(stream_fd, server, prebuffer)
@@ -210,7 +232,7 @@ def output_stream_passthrough(stream):
     return True
 
 
-def open_stream(stream):
+def open_stream(stream, seek_pos=0):
     """Opens a stream and reads 8192 bytes from it.
 
     This is useful to check if a stream actually has data
@@ -221,7 +243,7 @@ def open_stream(stream):
 
     # Attempts to open the stream
     try:
-        stream_fd = stream.open()
+        stream_fd = stream.open(seek_pos)
     except StreamError as err:
         raise StreamError("Could not open stream: {0}".format(err))
 

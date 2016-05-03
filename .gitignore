@@ -22,4 +22,5 @@ dist
 *.pyo
 *.tmp*
 *.swp
+*.idea
 docs/_build

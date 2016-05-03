@@ -1,5 +1,10 @@
 from collections import namedtuple
+from functools import partial
+from threading import Thread
 
+import requests
+
+from livestreamer.buffers import RingBuffer
 from .http import HTTPStream
 from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
@@ -11,29 +16,16 @@ Segment = namedtuple("Segment", "uri byte_range")
 
 
 class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
-    def __init__(self, *args, **kwargs):
-        SegmentedStreamWorker.__init__(self, *args, **kwargs)
-        self.segment_size = self.session.options.get("stream-segment-size")
-
-        try:
-            self.content_len = self.get_content_len()
-        except StreamError as err:
-            self.logger.error("Unable to retrieve content length: {0}", err)
-            self.close()
-
-    def get_content_len(self):
-        self.logger.debug("Retrieving content length")
-        res = self.session.http.head(self.stream.url,
-                                     acceptable_status=[200, 206],
-                                     exception=StreamError,
-                                     **self.reader.request_params)
-        content_length = int(res.headers["Content-Length"])
-        self.logger.debug("Content length of {0} bytes retrieved",
-                          content_length)
-        return content_length
+    def __init__(self, reader, *args, **kwargs):
+        SegmentedStreamWorker.__init__(self, reader, *args, **kwargs)
+        self.segment_size = reader.segment_size
 
     def iter_segments(self):
-        pos = 0
+        # Get initial position to stream from
+        pos = self.initial_seek_pos
+        if pos > 0:
+            self.logger.debug("Received seek. Seek to pos: {0}", pos)
+
         while not self.closed:
             segment = Segment(self.stream.url,
                               ByteRange(pos, pos + self.segment_size - 1))
@@ -43,12 +35,17 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
             pos += self.segment_size
 
             # End of stream
-            stream_end = pos >= self.content_len
+            stream_end = pos >= self.complete_length
             if self.closed or stream_end:
                 return
 
 
 class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
+    def __init__(self, reader, chunk_size=8192, **kwargs):
+        SegmentedStreamWriter.__init__(self, reader, **kwargs)
+        self.chunk_size = chunk_size
+        self.segment_size = reader.segment_size
+
     def create_request_params(self, segment):
         request_params = dict(self.reader.request_params)
         headers = request_params.pop("headers", {})
@@ -91,12 +88,24 @@ class SegmentedHTTPStreamReader(SegmentedStreamReader):
         self.logger = stream.session.logger.new_module("stream.shttp")
         self.request_params = dict(stream.args)
         self.timeout = stream.session.options.get("http-stream-timeout")
+        self.segment_size = self.session.options.get("stream-segment-size")
 
         # These params are reserved for internal use
         self.request_params.pop("exception", None)
         self.request_params.pop("stream", None)
         self.request_params.pop("timeout", None)
         self.request_params.pop("url", None)
+
+    def _get_complete_length(self):
+        self.logger.debug("Retrieving complete content length")
+        res = self.session.http.head(self.stream.url,
+                                     acceptable_status=[200, 206],
+                                     exception=StreamError,
+                                     **self.request_params)
+        complete_length = int(res.headers["Content-Length"])
+        self.logger.debug("Complete content length of {0} bytes retrieved",
+                          complete_length)
+        return complete_length
 
 
 class SegmentedHTTPStream(HTTPStream):
@@ -118,8 +127,11 @@ class SegmentedHTTPStream(HTTPStream):
     def __repr__(self):
         return "<SegmentedHTTPStream({0!r})>".format(self.url)
 
-    def open(self):
+    def open(self, seek_pos=0):
         reader = SegmentedHTTPStreamReader(self)
-        reader.open()
+        reader.open(seek_pos)
+
+        # Signal that this stream type always supports seeking
+        self._set_seek_supported(reader.complete_length)
 
         return reader
