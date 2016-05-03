@@ -81,7 +81,7 @@ class StreamingResponse:
         return request_params
 
     def _stream_fetch(self, retries):
-        if self.executor._shutdown:
+        if self.executor._shutdown or self.closed:
             self.close()
             return
 
@@ -102,7 +102,7 @@ class StreamingResponse:
 
             for chunk in resp.iter_content(self.chunk_size):
                 # Poll for executor shutdown event and terminate download if received
-                if self.executor._shutdown:
+                if self.executor._shutdown or self.closed:
                     resp.close()
                     self.close()
                     return
@@ -120,7 +120,7 @@ class StreamingResponse:
                                     err=err))
             exception.err = err
             self.logger.error("{0}", exception)
-            if retries and not self.executor._shutdown:
+            if retries and not (self.executor._shutdown or self.closed):
                 self.logger.error("Retrying segment {0}-{1}",
                                   *self.segment.byte_range)
                 self._stream_fetch(retries - 1)
@@ -158,15 +158,16 @@ class StreamingResponse:
         return iter(partial(self.read, chunk_size), b"")
 
     def close(self):
-        if self.consumed_data == self.segment_size:
-            self.logger.debug("Stream of segment {0}-{1} consumed",
-                              *self.segment.byte_range)
-        else:
-            self.logger.debug("Download of segment {0}-{1} cancelled",
-                              *self.segment.byte_range)
+        if not self.closed:
+            if self.consumed_data == self.segment_size:
+                self.logger.debug("Stream of segment {0}-{1} consumed",
+                                  *self.segment.byte_range)
+            else:
+                self.logger.debug("Download of segment {0}-{1} cancelled",
+                                  *self.segment.byte_range)
 
-        self.closed = True
-        self.segment_buffer.close()
+            self.closed = True
+            self.segment_buffer.close()
 
 
 class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
