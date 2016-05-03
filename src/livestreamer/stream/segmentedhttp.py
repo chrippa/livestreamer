@@ -58,6 +58,7 @@ class StreamingResponse:
         self.buffered_data = 0
         self.consumed_data = 0
         self.segment_size = self.session.options.get("stream-segment-size")
+        # TODO: Implement segment buffer pooling
         self.segment_buffer = RingBuffer(self.segment_size)
 
         if download_timeout is None:
@@ -84,9 +85,6 @@ class StreamingResponse:
             self.close()
             return
 
-        if self.closed:
-            return
-
         try:
             self.logger.debug("Started download of segment {0}-{1}",
                               *self.segment.byte_range)
@@ -99,8 +97,8 @@ class StreamingResponse:
                                          **request_params)
 
             self.segment_size = int(resp.headers["Content-Length"])
-            # TODO: Implement segment buffer pooling
-            self.segment_buffer.resize(self.segment_size)
+            if self.segment_buffer.buffer_size != self.segment_size:
+                self.segment_buffer.resize(self.segment_size)
 
             for chunk in resp.iter_content(self.chunk_size):
                 # Poll for executor shutdown event and terminate download if received
@@ -122,7 +120,7 @@ class StreamingResponse:
                                     err=err))
             exception.err = err
             self.logger.error("{0}", exception)
-            if retries:
+            if retries and not self.executor._shutdown:
                 self.logger.error("Retrying segment {0}-{1}",
                                   *self.segment.byte_range)
                 self._stream_fetch(retries - 1)
@@ -141,11 +139,13 @@ class StreamingResponse:
                                               block=not self.future.done(),
                                               timeout=self.read_timeout)
         except IOError as err:
+            self.close()
             raise StreamError("Failed to read data from stream: {0}".format(err))
 
         # The streaming response encountered an unrecoverable exception in one
         # of it's download threads. The stream should crash at this point
         if self.exception:
+            self.close()
             raise self.exception
 
         self.consumed_data += len(result)
