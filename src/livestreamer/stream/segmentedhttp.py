@@ -66,6 +66,10 @@ class StreamingResponse:
         if read_timeout is None:
             self.read_timeout = self.session.options.get("http-stream-timeout")
 
+    @property
+    def consumed(self):
+        return self.consumed_data == self.segment_size
+
     def start(self):
         self.future = self.executor.submit(self._stream_fetch, self.retries)
         return self
@@ -149,7 +153,7 @@ class StreamingResponse:
             raise self.exception
 
         self.consumed_data += len(result)
-        if self.consumed_data == self.segment_size:
+        if self.consumed:
             self.close()
 
         return result
@@ -159,7 +163,7 @@ class StreamingResponse:
 
     def close(self):
         if not self.closed:
-            if self.consumed_data == self.segment_size:
+            if self.consumed:
                 self.logger.debug("Stream of segment {0}-{1} consumed",
                                   *self.segment.byte_range)
             else:
@@ -195,8 +199,12 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
             for chunk in result.iter_content(self.chunk_size):
                 self.reader.buffer.write(chunk)
 
-            self.logger.debug("Streaming of segment {0}-{1} to buffer complete",
-                              *segment.byte_range)
+            if result.consumed:
+                self.logger.debug("Streaming of segment {0}-{1} to buffer complete",
+                                  *segment.byte_range)
+            else:
+                self.logger.debug("Streaming of segment {0}-{1} to buffer stopped",
+                                  *segment.byte_range)
 
         except StreamError as err:
             self.logger.error("Unable to recover stream: {0}",
