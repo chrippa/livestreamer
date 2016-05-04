@@ -188,6 +188,9 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
                 stream_fd, prebuffer = open_stream(stream, seek_pos)
             except StreamError as err:
                 console.logger.error("{0}", err)
+                # Exit program on error if we are not running in continuous mode
+                if not continuous:
+                    break
 
         # Enable/Disable seek support on HTTPServer
         if stream.supports_seek:
