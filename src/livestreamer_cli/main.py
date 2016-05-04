@@ -66,7 +66,7 @@ def create_output():
     elif args.stdout:
         out = FileOutput(fd=stdout)
     else:
-        http = namedpipe = None
+        namedpipe = None
 
         if not args.player:
             console.exit("The default player (VLC) does not seem to be "
@@ -81,14 +81,12 @@ def create_output():
                 namedpipe = NamedPipe(pipename)
             except IOError as err:
                 console.exit("Failed to create pipe: {0}", err)
-        elif args.player_http:
-            http = create_http_server()
 
         console.logger.info("Starting player: {0}", args.player)
         out = PlayerOutput(args.player, args=args.player_args,
                            quiet=not args.verbose_player,
                            kill=not args.player_no_close,
-                           namedpipe=namedpipe, http=http)
+                           namedpipe=namedpipe)
 
     return out
 
@@ -109,7 +107,7 @@ def create_http_server(host=None, port=0):
     return http
 
 
-def iter_http_requests(server, player):
+def iter_http_requests(server, player, continuous):
     """Repeatedly accept HTTP connections on a server.
 
     Forever if the serving externally, or while a player is running if it is not
@@ -120,11 +118,14 @@ def iter_http_requests(server, player):
         try:
             yield server.open(timeout=2.5)
         except OSError:
-            continue
+            if continuous:
+                continue
+            else:
+                break
 
 
-def output_stream_http(plugin, initial_streams, external=False, port=0):
-    """Continuously output the stream over HTTP."""
+def output_stream_http(plugin, initial_streams, external=False, port=0, continuous=True):
+    """Output the stream over HTTP."""
     global output
 
     if not external:
@@ -154,11 +155,11 @@ def output_stream_http(plugin, initial_streams, external=False, port=0):
             console.logger.info(" " + url)
 
     # Listen for request from player on HTTPServer
-    for req in iter_http_requests(server, player):
+    for req in iter_http_requests(server, player, continuous):
         user_agent = req.headers.get("User-Agent") or "unknown player"
         console.logger.info("Got HTTP request from {0}".format(user_agent))
 
-        # Check for seek
+        # Get seek position
         seek_pos = server.get_seek_pos(req)
 
         # Open remote stream for read
@@ -397,6 +398,9 @@ def handle_stream(plugin, streams, stream_name):
                                           port=args.player_external_http_port)
             elif args.player_continuous_http and not file_output:
                 return output_stream_http(plugin, streams)
+            elif args.player_http:
+                return output_stream_http(plugin, streams, continuous=False)
+
             else:
                 console.logger.info("Opening stream: {0} ({1})", stream_name,
                                     stream_type)
