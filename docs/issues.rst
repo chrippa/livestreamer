@@ -53,3 +53,11 @@ Option                              Used by these plugins
     Using 2 or 3 threads should be enough to see an impact on live streams,
     any more will likely not show much effect.
 
+
+Seek support
+^^^^^^^^^^^^
+
+To enable seek support for Progressive HTTP streams (httpstream://<url>) the
+player transport mode must be set to HTTP. This can be done using either the
+:option:`--player-http` option or the :option:`--player-continuous-http`
+option.
