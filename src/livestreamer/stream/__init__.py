@@ -6,6 +6,7 @@ from .hds import HDSStream
 from .hls import HLSStream
 from .http import HTTPStream
 from .segmentedhttp import SegmentedHTTPStream
+from .http_select import HTTPSelect
 from .rtmpdump import RTMPStream
 from .streamprocess import StreamProcess
 from .wrappers import StreamIOWrapper, StreamIOIterWrapper, StreamIOThreadWrapper

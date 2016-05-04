@@ -43,7 +43,9 @@ Option                              Used by these plugins
 :option:`--hds-segment-threads`     `dailymotion`, `mlgtv` and many more.
 :option:`--stream-segment-threads`  `ustreamtv`, `beattv` and any other plugins
                                     implementing their own segmented streaming
-                                    protocol.
+                                    protocol. Also used when streaming
+                                    Progressive HTTP video directly with
+                                    httpstream://<url>
 =================================== ============================================
 
 .. note::

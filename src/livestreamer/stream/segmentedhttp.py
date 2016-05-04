@@ -10,14 +10,16 @@ from .segmented import (SegmentedStreamReader,
 from ..exceptions import StreamError
 from requests.exceptions import RequestException
 
-ByteRange = namedtuple("ByteRange", "first_byte_pos last_byte_pos")
+ByteRange = namedtuple("ByteRange", "first_byte last_byte")
 Segment = namedtuple("Segment", "uri byte_range")
 
 
 class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
-    def __init__(self, reader, *args, **kwargs):
-        SegmentedStreamWorker.__init__(self, reader, *args, **kwargs)
+    def __init__(self, reader, seek_pos):
+        SegmentedStreamWorker.__init__(self, reader)
         self.segment_size = reader.segment_size
+        self.initial_seek_pos = seek_pos
+        self.complete_length = self.stream.get_complete_length()
 
     def iter_segments(self):
         # Get initial position to stream from
@@ -74,16 +76,6 @@ class StreamingResponse:
         self.future = self.executor.submit(self._stream_fetch, self.retries)
         return self
 
-    def create_request_params(self, segment):
-        request_params = dict(self.request_params)
-        headers = request_params.pop("headers", {})
-
-        headers["Range"] = "bytes={0}-{1}".format(*segment.byte_range)
-
-        request_params["headers"] = headers
-
-        return request_params
-
     def _stream_fetch(self, retries):
         if self.executor._shutdown or self.closed:
             self.close()
@@ -93,7 +85,10 @@ class StreamingResponse:
             self.logger.debug("Started download of segment {0}-{1}",
                               *self.segment.byte_range)
 
-            request_params = self.create_request_params(self.segment)
+            first_byte = self.segment.byte_range.first_byte
+            last_byte = self.segment.byte_range.last_byte
+            request_params = HTTPStream.add_range_hdr(first_byte, last_byte,
+                                                      self.request_params)
             resp = self.session.http.get(self.segment.uri,
                                          timeout=self.download_timeout,
                                          exception=StreamError,
@@ -119,8 +114,8 @@ class StreamingResponse:
 
         except (StreamError, RequestException, IOError) as err:
             exception = StreamError("Unable to download segment: {0}-{1} ({err})".format(
-                                    self.segment.byte_range.first_byte_pos,
-                                    self.segment.byte_range.last_byte_pos,
+                                    self.segment.byte_range.first_byte,
+                                    self.segment.byte_range.last_byte,
                                     err=err))
             exception.err = err
             self.logger.error("{0}", exception)
@@ -218,7 +213,7 @@ class SegmentedHTTPStreamReader(SegmentedStreamReader):
 
     def __init__(self, stream, *args, **kwargs):
         SegmentedStreamReader.__init__(self, stream, *args, **kwargs)
-        self.logger = stream.session.logger.new_module("stream.shttp")
+        self.logger = stream.logger
         self.request_params = dict(stream.args)
         self.timeout = stream.session.options.get("http-stream-timeout")
         self.segment_size = self.session.options.get("stream-segment-size")
@@ -228,17 +223,6 @@ class SegmentedHTTPStreamReader(SegmentedStreamReader):
         self.request_params.pop("stream", None)
         self.request_params.pop("timeout", None)
         self.request_params.pop("url", None)
-
-    def _get_complete_length(self):
-        self.logger.debug("Retrieving complete content length")
-        res = self.session.http.head(self.stream.url,
-                                     acceptable_status=[200, 206],
-                                     exception=StreamError,
-                                     **self.request_params)
-        complete_length = int(res.headers["Content-Length"])
-        self.logger.debug("Complete content length of {0} bytes retrieved",
-                          complete_length)
-        return complete_length
 
 
 class SegmentedHTTPStream(HTTPStream):
@@ -252,7 +236,7 @@ class SegmentedHTTPStream(HTTPStream):
 
     """
 
-    __shortname__ = "shttp"
+    __shortname__ = "http"
 
     def __init__(self, session_, url, **args):
         HTTPStream.__init__(self, session_, url, **args)
@@ -261,10 +245,12 @@ class SegmentedHTTPStream(HTTPStream):
         return "<SegmentedHTTPStream({0!r})>".format(self.url)
 
     def open(self, seek_pos=0):
+        # Signal that this stream type supports seek
         reader = SegmentedHTTPStreamReader(self)
-        reader.open(seek_pos)
+        reader.open(seek_pos=seek_pos)
 
-        # Signal that this stream type always supports seeking
-        self._set_seek_supported(reader.complete_length)
+        self.complete_length = self.get_complete_length()
+        if self.complete_length:
+            self.supports_seek = True
 
         return reader

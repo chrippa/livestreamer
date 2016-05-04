@@ -35,9 +35,11 @@ class HTTPStream(Stream):
 
     def __init__(self, session_, url, buffered=True, **args):
         Stream.__init__(self, session_)
+        self.logger = self.session.logger.new_module("stream.http")
 
         self.args = dict(url=url, **args)
         self.buffered = buffered
+        self.complete_length = None
 
     def __repr__(self):
         return "<HTTPStream({0!r})>".format(self.url)
@@ -64,7 +66,48 @@ class HTTPStream(Stream):
         return requests.Request(method=method,
                                 **valid_args(self.args)).prepare().url
 
+    @staticmethod
+    def add_range_hdr(first_byte, last_byte, request_params):
+        headers = request_params.pop("headers", {})
+        headers["Range"] = "bytes={0}-{1}".format(first_byte, last_byte)
+        request_params["headers"] = headers
+
+        return request_params
+
+    def get_complete_length(self):
+        """
+        Gets the total content length of all media segments. This method
+        will communicate with the stream server to try to work out the content
+        length. The content length may be unavailable, such as when streaming
+        a live stream. In this case the method should return None.
+
+        :returns: None for unknown content length.\r\n
+                  The total content length of all media segments
+                  for known content length.
+        """
+        if not self.complete_length:
+            self.logger.debug("Retrieving complete content length")
+            res = self.session.http.head(self.url,
+                                         acceptable_status=[200, 206],
+                                         exception=StreamError)
+            try:
+                self.complete_length = int(res.headers.get("Content-Length"))
+                self.logger.debug("Complete content length of {0} bytes retrieved",
+                                  self.complete_length)
+            except (ValueError, TypeError):
+                self.complete_length = None
+                self.logger.debug("Unable to get content length")
+
+        return self.complete_length
+
     def open(self, seek_pos=0):
+        self.complete_length = self.get_complete_length()
+        if self.complete_length:
+            self.args = self.add_range_hdr(seek_pos,
+                                           self.complete_length - 1,
+                                           self.args)
+            self.supports_seek = True
+
         method = self.args.get("method", "GET")
         timeout = self.session.options.get("http-timeout")
         res = self.session.http.request(method=method,
