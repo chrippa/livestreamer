@@ -247,7 +247,7 @@ def open_stream(stream, seek_pos=0):
 
     # Attempts to open the stream
     try:
-        stream_fd = stream.open(seek_pos=seek_pos)
+        stream_fd = stream.open(seek_pos)
     except StreamError as err:
         raise StreamError("Could not open stream: {0}".format(err))
 

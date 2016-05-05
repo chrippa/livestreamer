@@ -109,7 +109,7 @@ class HTTPStream(Stream):
 
         return self.complete_length
 
-    def open(self, seek_pos=0, *args, **kwargs):
+    def open(self, seek_pos=0):
         self.complete_length = self.get_complete_length()
         if self.complete_length:
             self.args = self.add_range_hdr(seek_pos,

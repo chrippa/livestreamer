@@ -87,7 +87,7 @@ class AkamaiHDStreamIO(io.IOBase):
         self.swf = swf
         self.seek = seek
 
-    def open(self, *args, **kwargs):
+    def open(self):
         self.guid = cache_bust_string(12)
         self.islive = None
         self.sessionid = None
@@ -258,10 +258,10 @@ class AkamaiHDStream(Stream):
         return dict(type=AkamaiHDStream.shortname(),
                     url=self.url, swf=self.swf)
 
-    def open(self, *args, **kwargs):
+    def open(self):
         stream = AkamaiHDStreamIO(self.session, self.url,
                                   self.swf, self.seek)
 
-        return StreamIOThreadWrapper(self.session, stream.open(*args, **kwargs))
+        return StreamIOThreadWrapper(self.session, stream.open())
 
 __all__ = ["AkamaiHDStream"]

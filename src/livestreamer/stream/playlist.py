@@ -15,7 +15,7 @@ class Playlist(Stream):
         self.streams = streams
         self.duration = duration
 
-    def open(self, *args, **kwargs):
+    def open(self):
         raise NotImplementedError
 
     def __json__(self):
@@ -26,7 +26,7 @@ class Playlist(Stream):
 class FLVPlaylistIO(FLVTagConcatIO):
     __log_name__ = "stream.flv_playlist"
 
-    def open(self, streams, *args, **kwargs):
+    def open(self, streams):
         def generator():
             for stream in streams:
                 self.logger.debug("Opening substream: {0}", stream)
@@ -36,7 +36,7 @@ class FLVPlaylistIO(FLVTagConcatIO):
                     stream.buffered = False
 
                 try:
-                    fd = stream.open(*args, **kwargs)
+                    fd = stream.open()
                 except StreamError as err:
                     self.logger.error("Failed to open stream: {0}", err)
                     continue
@@ -60,13 +60,13 @@ class FLVPlaylist(Playlist):
         self.skip_header = skip_header
         self.concater_params = concater_params
 
-    def open(self, *args, **kwargs):
+    def open(self):
         fd = FLVPlaylistIO(self.session,
                            tags=self.tags,
                            duration=self.duration,
                            skip_header=self.skip_header,
                            **self.concater_params)
-        fd.open(self.streams, *args, **kwargs)
+        fd.open(self.streams)
 
         return fd
 
