@@ -57,7 +57,7 @@ class Livestreamer(object):
             "stream-segment-attempts": 3,
             "stream-segment-threads": 1,
             "stream-segment-timeout": 10.0,
-            "stream-segment-size": 1024 * 1024 * 2,
+            "stream-segment-size": 1024 * 1024 * 1,  # 1 MB
 
             "stream-timeout": 60.0,
             "subprocess-errorlog": False

@@ -15,8 +15,8 @@ Segment = namedtuple("Segment", "uri byte_range")
 
 
 class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
-    def __init__(self, reader, seek_pos):
-        SegmentedStreamWorker.__init__(self, reader)
+    def __init__(self, reader, seek_pos, *args, **kwargs):
+        SegmentedStreamWorker.__init__(self, reader, *args, **kwargs)
         self.segment_size = reader.segment_size
         self.initial_seek_pos = seek_pos
         self.complete_length = self.stream.get_complete_length()
@@ -241,13 +241,20 @@ class SegmentedHTTPStream(HTTPStream):
     def __init__(self, session_, url, **args):
         HTTPStream.__init__(self, session_, url, **args)
 
+    # Make sure we always use the correct HTTP stream type
+    def __new__(cls, session, *args, **kwargs):
+        if session.options.get("stream-segment-threads") == 1:
+            return HTTPStream(session, *args, **kwargs)
+        else:
+            return HTTPStream.__new__(cls, session, *args, **kwargs)
+
     def __repr__(self):
         return "<SegmentedHTTPStream({0!r})>".format(self.url)
 
-    def open(self, seek_pos=0):
+    def open(self, seek_pos=0, *args, **kwargs):
         # Signal that this stream type supports seek
         reader = SegmentedHTTPStreamReader(self)
-        reader.open(seek_pos=seek_pos)
+        reader.open(seek_pos)
 
         self.complete_length = self.get_complete_length()
         if self.complete_length:

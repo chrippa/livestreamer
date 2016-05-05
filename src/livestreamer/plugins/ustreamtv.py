@@ -404,7 +404,7 @@ class UHSStream(Stream):
         })
         return json
 
-    def open(self):
+    def open(self, *args, **kwargs):
         reader = UHSStreamReader(self)
         reader.open()
 

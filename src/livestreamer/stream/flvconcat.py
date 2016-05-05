@@ -49,8 +49,8 @@ def iter_flv_tags(fd=None, buf=None, strict=False, skip_header=False):
         yield tag
 
 
-def extract_flv_header_tags(stream):
-    fd = stream.open()
+def extract_flv_header_tags(stream, *args, **kwargs):
+    fd = stream.open(*args, **kwargs)
     metadata = aac_header = avc_header = None
 
     for tag_index, tag in enumerate(iter_flv_tags(fd)):

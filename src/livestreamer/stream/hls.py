@@ -253,7 +253,7 @@ class HLSStream(HTTPStream):
 
         return json
 
-    def open(self):
+    def open(self, *args, **kwargs):
         reader = HLSStreamReader(self)
         reader.open()
 

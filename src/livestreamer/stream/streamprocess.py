@@ -36,7 +36,7 @@ class StreamProcess(Stream):
         self.errorlog = self.session.options.get("subprocess-errorlog")
         self.timeout = timeout
 
-    def open(self):
+    def open(self, *args, **kwargs):
         cmd = self._check_cmd()
         params = self.params.copy()
         params["_bg"] = True

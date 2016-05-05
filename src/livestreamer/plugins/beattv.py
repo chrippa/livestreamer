@@ -259,7 +259,7 @@ class BeatStream(Stream):
         return dict(parts=self.parts, quality=self.quality,
                     **Stream.__json__(self))
 
-    def open(self):
+    def open(self, *args, **kwargs):
         if not CAN_DECRYPT:
             raise StreamError(
                 "pyCrypto needs to be installed to decrypt this stream"

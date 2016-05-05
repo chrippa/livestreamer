@@ -34,7 +34,7 @@ class RTMPStream(StreamProcess):
     def __json__(self):
         return dict(type=RTMPStream.shortname(), params=self.params)
 
-    def open(self):
+    def open(self, *args, **kwargs):
         if self.session.options.get("rtmp-proxy"):
             if not self._supports_param("socks"):
                 raise StreamError("Installed rtmpdump does not support --socks argument")
@@ -52,7 +52,7 @@ class RTMPStream(StreamProcess):
 
         self.params["flv"] = "-"
 
-        return StreamProcess.open(self)
+        return StreamProcess.open(self, *args, **kwargs)
 
     def _check_redirect(self, timeout=20):
         cmd = self._check_cmd()

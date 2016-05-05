@@ -33,6 +33,15 @@ class HTTPStream(Stream):
 
     __shortname__ = "http"
 
+    # Make sure we always use the correct HTTP stream type
+    def __new__(cls, session, *args, **kwargs):
+        if (cls is HTTPStream and
+                session.options.get("stream-segment-threads") > 1):
+            from .segmentedhttp import SegmentedHTTPStream
+            return Stream.__new__(SegmentedHTTPStream)
+        else:
+            return Stream.__new__(cls)
+
     def __init__(self, session_, url, buffered=True, **args):
         Stream.__init__(self, session_)
         self.logger = self.session.logger.new_module("stream.http")
@@ -100,7 +109,7 @@ class HTTPStream(Stream):
 
         return self.complete_length
 
-    def open(self, seek_pos=0):
+    def open(self, seek_pos=0, *args, **kwargs):
         self.complete_length = self.get_complete_length()
         if self.complete_length:
             self.args = self.add_range_hdr(seek_pos,
