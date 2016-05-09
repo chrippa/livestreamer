@@ -77,6 +77,7 @@ class HTTPStream(Stream):
 
     @staticmethod
     def add_range_hdr(first_byte, last_byte, request_params):
+        request_params = dict(request_params)
         headers = request_params.pop("headers", {})
         headers["Range"] = "bytes={0}-{1}".format(first_byte, last_byte)
         request_params["headers"] = headers
