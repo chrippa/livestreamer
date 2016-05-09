@@ -43,7 +43,7 @@ class StreamIOIterWrapper(io.IOBase):
         return self.buffer.read(size)
 
     def close(self):
-        self.buffer.close()
+        pass
 
 
 class StreamIOThreadWrapper(io.IOBase):
@@ -100,8 +100,6 @@ class StreamIOThreadWrapper(io.IOBase):
 
     def re_init(self, fd):
         self.filler.stop()
-        self.fd.close()
-        self.buffer.close()
 
         self.buffer = RingBuffer(self.buffer.buffer_size)
         self.fd = fd
@@ -122,9 +120,6 @@ class StreamIOThreadWrapper(io.IOBase):
 
         if self.filler.is_alive():
             self.filler.join()
-
-        self.fd.close()
-        self.buffer.close()
 
 
 __all__ = ["StreamIOWrapper", "StreamIOIterWrapper", "StreamIOThreadWrapper"]
