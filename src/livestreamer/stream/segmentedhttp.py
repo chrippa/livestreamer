@@ -15,7 +15,7 @@ class _SeekCoordinator(Thread):
     def __init__(self, reader):
         self.work_queue = reader.writer.futures
         self.logger = reader.logger
-        self.mailbox = reader.session.msg_broker.register("seek_coordinator")
+        self.mailbox = reader.stream.msg_broker.register("seek_coordinator")
         self.mailbox.subscribe("seek_event")
         self.closed = False
 
@@ -73,7 +73,7 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
         SegmentedStreamWorker.__init__(self, reader)
         self.segment_size = reader.segment_size
         self.complete_length = self.stream.get_complete_length()
-        self.msg_broker = self.session.msg_broker
+        self.msg_broker = self.stream.msg_broker
         self.mailbox = self.msg_broker.register("worker")
         self.mailbox.subscribe("seek_event")
 
@@ -138,7 +138,7 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
         SegmentedStreamWriter.__init__(self, reader, **kwargs)
         self.chunk_size = kwargs.setdefault("chunk_size", 8192)
         self.segment_size = reader.segment_size
-        self.msg_broker = self.session.msg_broker
+        self.msg_broker = self.stream.msg_broker
         self.mailbox = self.msg_broker.register("writer")
         self.mailbox.subscribe("seek_event")
         self.complete_length = self.stream.get_complete_length()

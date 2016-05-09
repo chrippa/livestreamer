@@ -3,6 +3,7 @@ from threading import Thread
 
 import requests
 
+from livestreamer.message_broker import MessageBroker
 from .stream import Stream
 from .wrappers import StreamIOThreadWrapper, StreamIOIterWrapper
 from ..exceptions import StreamError, MailboxTimeout
@@ -26,7 +27,7 @@ class _SeekCoordinator(Thread):
         self.stream = stream
         self.logger = stream.logger
         self.session = stream.session
-        self.mailbox = self.session.msg_broker.register("seek_coordinator")
+        self.mailbox = self.stream.msg_broker.register("seek_coordinator")
         self.mailbox.subscribe("seek_event")
         self.request_params = stream.args
         self.closed = False
@@ -105,7 +106,8 @@ class HTTPStream(Stream):
         self.args = dict(url=url, **args)
         self.buffered = buffered
         self.complete_length = None
-        self.mailbox = session_.msg_broker.register("http")
+        self.msg_broker = MessageBroker()
+        self.mailbox = self.msg_broker.register("http")
         self.fd = None
         self.res = None
 
