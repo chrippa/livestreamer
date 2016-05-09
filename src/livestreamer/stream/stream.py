@@ -20,7 +20,7 @@ class Stream(object):
     def __json__(self):
         return dict(type=type(self).shortname())
 
-    def open(self, seek_pos=0):
+    def open(self):
         """
         Attempts to open a connection to the stream.
         Returns a file-like object that can be used to read the stream data.

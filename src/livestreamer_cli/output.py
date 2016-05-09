@@ -145,7 +145,7 @@ class PlayerOutput(Output):
             self.namedpipe.open("wb")
 
     def _close(self):
-        # Close input to the player first to signal the end of the
+        # Close input to the player first to handled_sig the end of the
         # stream and allow the player to terminate of its own accord
         if self.namedpipe:
             self.namedpipe.close()

@@ -178,11 +178,11 @@ class SegmentedStreamReader(StreamIO):
 
         self.timeout = timeout
 
-    def open(self, seek_pos=0):
+    def open(self):
         buffer_size = self.session.get_option("ringbuffer-size")
         self.buffer = RingBuffer(buffer_size)
         self.writer = self.__writer__(self)
-        self.worker = self.__worker__(self, seek_pos=seek_pos)
+        self.worker = self.__worker__(self)
 
         self.writer.start()
         self.worker.start()

@@ -10,7 +10,7 @@ from .exceptions import NoPluginError, PluginError
 from .logger import Logger
 from .options import Options
 from .plugin import api
-
+from .message_broker import MessageBroker
 
 def print_small_exception(start_after):
     type, value, traceback_ = sys.exc_info()
@@ -57,7 +57,7 @@ class Livestreamer(object):
             "stream-segment-attempts": 3,
             "stream-segment-threads": 1,
             "stream-segment-timeout": 10.0,
-            "stream-segment-size": 1024 * 1024 * 2,
+            "stream-segment-size": 1024 * 1024 * 1,  # 1 MB
 
             "stream-timeout": 60.0,
             "subprocess-errorlog": False
@@ -65,6 +65,7 @@ class Livestreamer(object):
         self.plugins = {}
         self.logger = Logger()
         self.load_builtin_plugins()
+        self.msg_broker = MessageBroker()
 
     def set_option(self, key, value):
         """Sets general options used by plugins and streams originating

@@ -43,9 +43,7 @@ Option                              Used by these plugins
 :option:`--hds-segment-threads`     `dailymotion`, `mlgtv` and many more.
 :option:`--stream-segment-threads`  `ustreamtv`, `beattv` and any other plugins
                                     implementing their own segmented streaming
-                                    protocol. Also used when streaming
-                                    Progressive HTTP video directly with
-                                    httpstream://<url>
+                                    protocol.
 =================================== ============================================
 
 .. note::
@@ -57,7 +55,19 @@ Option                              Used by these plugins
 Seek support
 ^^^^^^^^^^^^
 
-To enable seek support for Progressive HTTP streams (httpstream://<url>) the
-player transport mode must be set to HTTP. This can be done using either the
-:option:`--player-http` option or the :option:`--player-continuous-http`
-option.
+To enable seek support for progressive HTTP VODS the player transport mode
+must be set to HTTP. This can be done using either the :option:`--player-http`
+option or the :option:`--player-continuous-http` option. You must also be using
+one of the supported plugins or open the VOD url directly with the builtin
+streaming protocol for http:
+
+.. code-block:: console
+
+    $ livestreamer httpstream://[http[s]://]www.quirksmode.org/html5/videos/big_buck_bunny.mp4
+
+=================================== ============================================
+Supported Plugins                   Example URL:
+=================================== ============================================
+`youtube`                           https://www.youtube.com/watch?v=r3EKpCbMGG8
+
+=================================== ============================================
