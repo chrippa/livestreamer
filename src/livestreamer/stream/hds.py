@@ -412,7 +412,7 @@ class HDSStream(Stream):
         return dict(type=HDSStream.shortname(), baseurl=self.baseurl,
                     url=self.url, bootstrap=bootstrap, metadata=metadata)
 
-    def open(self, *args, **kwargs):
+    def open(self):
         reader = HDSStreamReader(self)
         reader.open()
         return reader

@@ -154,16 +154,13 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
         for url in server.urls:
             console.logger.info(" " + url)
 
-    # Listen for request from player on HTTPServer
+    stream = stream_fd = prebuffer = None
+    # Listen for requests from player on HTTPServer
     for req in iter_http_requests(server, player, continuous):
         user_agent = req.headers.get("User-Agent") or "unknown player"
         console.logger.info("Got HTTP request from {0}".format(user_agent))
 
-        # Get seek position
-        seek_pos = server.get_seek_pos(req)
-
         # Open remote stream for read
-        stream_fd = prebuffer = None
         while not stream_fd and (not player or player.running):
             try:
                 streams = initial_streams or fetch_streams(plugin)
@@ -185,34 +182,56 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
             try:
                 console.logger.info("Opening stream: {0} ({1})", stream_name,
                                     type(stream).shortname())
-                stream_fd, prebuffer = open_stream(stream, seek_pos)
+                stream_fd, prebuffer = open_stream(stream)
+
+                # Enable seek support if stream supports it
+                if stream.supports_seek:
+                    server.enable_seek(stream.complete_length)
+
             except StreamError as err:
                 console.logger.error("{0}", err)
                 # Exit program on error if we are not running in continuous mode
                 if not continuous:
                     break
 
-        # Enable/Disable seek support on HTTPServer
-        if stream.supports_seek:
-            server.enable_seek(stream.complete_length)
+        # If stream is open then handle the request
+        if stream_fd and not stream_fd.closed:
+            # Handle seek events
+            got_seek = False
+            if stream.supports_seek:
+                seek_pos = server.get_seek_pos(req)
+                if seek_pos:
+                    got_seek = True
+                    # Need to clear the prebuffer so we don't write it out again
+                    prebuffer = b""
 
-        # Send header for response to player request through local HTTPServer
-        # socket
-        try:
-            server.send_header(req)
-        except socket.error as err:
-            console.logger.error("{0}", err)
-            server.close()
-            continue
+                    # Notify livestreamer threads
+                    msg_broker = livestreamer.msg_broker
+                    msg_broker.send("seek_event", seek_pos, wait=True)
 
-        # Continuously read data from remote stream and write out through
-        # local HTTPServer socket
-        if stream_fd and prebuffer:
-            console.logger.debug("Writing stream to player")
-            read_stream(stream_fd, server, prebuffer)
+            # Seek msg handled by all subscribing threads. Proceed with stream
+
+            # Proceed only if we got a prebuffer or we are seeking
+            if got_seek or prebuffer:
+                # Send header for response to player request through local
+                # HTTPServer socket
+                try:
+                    server.send_header(req)
+                except socket.error as err:
+                    console.logger.error("{0}", err)
+                    server.close()
+                    continue
+
+                # Continuously read data from remote stream and write out through
+                # local HTTPServer socket
+                console.logger.debug("Writing stream to player")
+                read_stream(stream_fd, server, prebuffer)
 
         server.close(True)
 
+    console.logger.info("Stream ended")
+    if stream_fd:
+        stream_fd.close()
     player.close()
     server.close()
 
@@ -236,7 +255,7 @@ def output_stream_passthrough(stream):
     return True
 
 
-def open_stream(stream, seek_pos=0):
+def open_stream(stream):
     """Opens a stream and reads 8192 bytes from it.
 
     This is useful to check if a stream actually has data
@@ -247,7 +266,7 @@ def open_stream(stream, seek_pos=0):
 
     # Attempts to open the stream
     try:
-        stream_fd = stream.open(seek_pos=seek_pos)
+        stream_fd = stream.open()
     except StreamError as err:
         raise StreamError("Could not open stream: {0}".format(err))
 
@@ -304,10 +323,14 @@ def read_stream(stream, output, prebuffer, chunk_size=8192):
     is_fifo = is_player and output.namedpipe
     show_progress = isinstance(output, FileOutput) and output.fd is not stdout
 
-    stream_iterator = chain(
-        [prebuffer],
-        iter(partial(stream.read, chunk_size), b"")
-    )
+    if prebuffer:
+        stream_iterator = chain(
+            [prebuffer],
+            iter(partial(stream.read, chunk_size), b"")
+        )
+    else:
+        stream_iterator = iter(partial(stream.read, chunk_size), b"")
+
     if show_progress:
         stream_iterator = progress(stream_iterator,
                                    prefix=os.path.basename(args.output))
@@ -337,9 +360,6 @@ def read_stream(stream, output, prebuffer, chunk_size=8192):
                 break
     except IOError as err:
         console.logger.error("Error when reading from stream: {0}", err)
-
-    stream.close()
-    console.logger.info("Stream ended")
 
 
 def handle_stream(plugin, streams, stream_name):

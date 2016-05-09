@@ -13,7 +13,7 @@ class SegmentedStreamWorker(Thread):
     writer thread.
     """
 
-    def __init__(self, reader, *args, **kwargs):
+    def __init__(self, reader):
         self.closed = False
         self.reader = reader
         self.writer = reader.writer
@@ -178,11 +178,11 @@ class SegmentedStreamReader(StreamIO):
 
         self.timeout = timeout
 
-    def open(self, *args, **kwargs):
+    def open(self):
         buffer_size = self.session.get_option("ringbuffer-size")
         self.buffer = RingBuffer(buffer_size)
         self.writer = self.__writer__(self)
-        self.worker = self.__worker__(self, *args, **kwargs)
+        self.worker = self.__worker__(self)
 
         self.writer.start()
         self.worker.start()

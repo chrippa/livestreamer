@@ -25,6 +25,10 @@ class StreamIOIterWrapper(io.IOBase):
         self.iterator = iterator
         self.buffer = Buffer()
 
+    def re_init(self, iterator):
+        self.close()
+        self.__init__(iterator)
+
     def read(self, size=-1):
         if size < 0:
             size = self.buffer.length
@@ -93,6 +97,16 @@ class StreamIOThreadWrapper(io.IOBase):
 
         self.filler = StreamIOThreadWrapper.Filler(self.fd, self.buffer)
         self.filler.start()
+
+    def re_init(self, fd):
+        self.filler.stop()
+
+        self.buffer = RingBuffer(self.buffer.buffer_size)
+        self.fd = fd
+
+        self.filler = StreamIOThreadWrapper.Filler(self.fd, self.buffer)
+        self.filler.start()
+
 
     def read(self, size=-1):
         if self.filler.error and self.buffer.length == 0:
