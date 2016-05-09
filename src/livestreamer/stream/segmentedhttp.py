@@ -11,7 +11,7 @@ from .streaming_response import Segment, ByteRange, StreamingResponse
 from ..compat import queue
 
 
-class SeekCoordinator(Thread):
+class _SeekCoordinator(Thread):
     def __init__(self, reader):
         self.work_queue = reader.writer.futures
         self.logger = reader.logger
@@ -271,13 +271,15 @@ class SegmentedHTTPStreamReader(SegmentedStreamReader):
 
     def open(self):
         SegmentedStreamReader.open(self)
-        self.seek_coordinator = SeekCoordinator(self)
-        self.seek_coordinator.start()
+        if self.stream.supports_seek:
+            self.seek_coordinator = _SeekCoordinator(self)
+            self.seek_coordinator.start()
 
     def close(self):
-        self.seek_coordinator.close()
-        if self.seek_coordinator.is_alive():
-            self.seek_coordinator.join()
+        if self.stream.supports_seek:
+            self.seek_coordinator.close()
+            if self.seek_coordinator.is_alive():
+                self.seek_coordinator.join()
         SegmentedStreamReader.close(self)
 
 
@@ -300,9 +302,9 @@ class SegmentedHTTPStream(HTTPStream):
 
     # Make sure we always use the correct HTTP stream type
     def __new__(cls, session, *args, **kwargs):
-        # if session.options.get("stream-segment-threads") == 1:
-        #     return HTTPStream(session, *args, **kwargs)
-        # else:
+        if session.options.get("stream-segment-threads") == 1:
+            return HTTPStream(session, *args, **kwargs)
+        else:
             return HTTPStream.__new__(cls, session, *args, **kwargs)
 
     def __repr__(self):
