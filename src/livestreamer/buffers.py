@@ -106,7 +106,7 @@ class RingBuffer(Buffer):
         if block and not self.closed:
             self.event_used.wait(timeout)
 
-            # If the event is still not set it's a timeout
+            # If the msg is still not set it's a timeout
             if not self.event_used.is_set() and self.length == 0:
                 raise IOError("Read timeout")
 

@@ -77,6 +77,7 @@ class HTTPStream(Stream):
 
     @staticmethod
     def add_range_hdr(first_byte, last_byte, request_params):
+        request_params = dict(request_params)
         headers = request_params.pop("headers", {})
         headers["Range"] = "bytes={0}-{1}".format(first_byte, last_byte)
         request_params["headers"] = headers
@@ -109,13 +110,13 @@ class HTTPStream(Stream):
 
         return self.complete_length
 
-    def open(self, seek_pos=0):
+    def open(self):
         self.complete_length = self.get_complete_length()
         if self.complete_length:
+            self.supports_seek = True
             self.args = self.add_range_hdr(seek_pos,
                                            self.complete_length - 1,
                                            self.args)
-            self.supports_seek = True
 
         method = self.args.get("method", "GET")
         timeout = self.session.options.get("http-timeout")
