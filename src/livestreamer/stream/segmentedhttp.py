@@ -11,7 +11,6 @@ from .streaming_response import Segment, ByteRange, StreamingResponse
 from ..compat import queue
 
 
-# TODO: Replace with barrier (needs to be compatible with python 2.7)
 class SeekCoordinator(Thread):
     def __init__(self, reader):
         self.work_queue = reader.writer.futures
@@ -28,10 +27,12 @@ class SeekCoordinator(Thread):
             try:
                 seek_event = self.mailbox.get("seek_event", wait=True, timeout=1)
             except MailboxTimeout:
+                # TODO: Replace poll with mailbox close event that wakes thread with an exception
                 continue  # Used to poll for close event
             else:
                 # Wait for the writer to enter a ready state first so it can't
                 # block trying to fetch work from an empty work queue
+                # TODO: Replace with barrier (needs to be compatible with python 2.7)
                 self.mailbox.wait_on_msg("waiting on restart", source="writer")
 
                 # Flush work queue and poll worker for ready state
@@ -39,6 +40,7 @@ class SeekCoordinator(Thread):
                 worker_ready = False
                 while not worker_ready or not queue_empty:
                     if not worker_ready:
+                        # TODO: Replace with barrier (needs to be compatible with python 2.7)
                         worker_ready = self.mailbox.get("waiting on restart",
                                                         source="worker")
                     try:
@@ -53,6 +55,7 @@ class SeekCoordinator(Thread):
                         queue_empty = self.work_queue.empty()
 
                 # Queue has been flush so it is safe to restart threads
+                # TODO: Replace with barrier wait (needs to be compatible with python 2.7)
                 self.mailbox.send("restart", target="worker")
                 self.mailbox.send("restart", target="writer")
 
@@ -61,6 +64,7 @@ class SeekCoordinator(Thread):
 
     def close(self):
         self.closed = True
+        # TODO: Replace with mailbox close that wakes waiting threads with an exception
         self.mailbox.unsubscribe("seek_event")
 
 
@@ -110,6 +114,7 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
             stream_end = pos >= self.complete_length
             if stream_end:
                 # Idle waiting on seek events until shutdown
+                # TODO: Replace poll with mailbox close event that wakes thread with an exception
                 idle = True
                 while idle and not self.closed and not self.writer.closed:
                     try:
@@ -124,6 +129,7 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
     def close(self):
         if not self.closed:
             SegmentedStreamWorker.close(self)
+            # TODO: Replace with mailbox close that wakes waiting threads with an exception
             self.mailbox.unsubscribe("seek_event")
 
 
@@ -211,6 +217,7 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                     self.logger.info("End of stream reached")
 
                     # Idle waiting on seek events until shutdown
+                    # TODO: Replace poll with mailbox close event that wakes thread with an exception
                     idle = True
                     while idle and not self.closed:
                         try:
@@ -241,6 +248,7 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
     def close(self):
         if not self.closed:
             SegmentedStreamWriter.close(self)
+            # TODO: Replace with mailbox close that wakes waiting threads with an exception
             self.mailbox.unsubscribe("seek_event")
 
 

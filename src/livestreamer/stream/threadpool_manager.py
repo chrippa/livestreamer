@@ -30,10 +30,11 @@ class GroupTracker(object):
 
     def wait_shutdown(self, group_id, timeout=None):
         with self.is_shutdown[group_id]:
-            is_shutdown = self._counter[group_id] == 0
+            is_shutdown = self._counter[group_id]
 
             if not is_shutdown:
-                is_shutdown = self.is_shutdown[group_id].wait(timeout)
+                self.is_shutdown[group_id].wait(timeout)
+                is_shutdown = self._counter[group_id]
             return is_shutdown
 
 

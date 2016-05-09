@@ -30,18 +30,24 @@ def source_filter(msg, source):
 
 class HandleableMsg(object):
     def __init__(self, msg_handle, msg_data=None, source=None):
-        self.__nonzero__ = self.__bool__
         self.msg_handle = msg_handle
         self.data = msg_data
         self.source = source
         self.handled_sig = Condition(Lock())
         self._handled = False
 
+    @property
+    def handled(self):
+        return self._handled
+
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.set_handled()
+
+    def __nonzero__(self):
+        return self.__bool__()
 
     def __bool__(self):
         return self.msg_handle is not None
@@ -50,7 +56,8 @@ class HandleableMsg(object):
         with self.handled_sig:
             handled = self._handled
             if not handled:
-                handled = self.handled_sig.wait(timeout)
+                self.handled_sig.wait(timeout)
+                handled = self._handled
             return handled
 
     def set_handled(self):
@@ -165,8 +172,8 @@ class MessageBroker(object):
 
         if wait:
             # Wait on handled
-            handled = msg.wait(timeout)
-            if not handled:
+            msg.wait(timeout)
+            if not msg.handled:
                 raise DeliveryTimeout("Timed out waiting for message '{0}' to be handled"
                                       .format(msg_handle))
         else:
