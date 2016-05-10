@@ -40,11 +40,10 @@ class _SeekCoordinator(Thread):
                 # Flush work queue and poll worker for ready state
                 queue_empty = False
                 worker_ready = False
-                self.logger.debug("Flushing work queue")
+                self.logger.debug("Flushing work queue and polling worker thread")
                 while not worker_ready or not queue_empty:
                     if not worker_ready:
                         # TODO: Replace with barrier (needs to be compatible with python 2.7)
-                        self.logger.debug("Polling worker thread")
                         worker_ready = self.mailbox.get("waiting on restart",
                                                         source="worker")
                         if worker_ready:
