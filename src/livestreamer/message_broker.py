@@ -3,29 +3,95 @@ from .compat import queue
 from threading import Condition, Lock
 from livestreamer.exceptions import RegistrationFailed, DeliveryFailed, DeliveryTimeout, NotSubscribed, MailboxTimeout
 
+from time import time as _time
 
-def msg_filter(queue_, wait, timeout, filter_fn, *args, **kwargs):
-    match = False
-    saved_msgs = deque()
-    msg = None
-    while not match:
-        # Unblocks on new msgs
-        msg = queue_.get(wait, timeout)
 
-        match = filter_fn(msg, *args, **kwargs)
-        if match:
-            # Restore saved messages to the message queue
-            while len(saved_msgs) > 0:
-                queue_.put(saved_msgs.popleft())
+def filter_get(self, filter_fn, *args, **kwargs):
+    """Remove and return a matching item from the queue.
+
+    If optional args 'block' is true and 'timeout' is None (the default),
+    block if necessary until a matching item is available. If 'timeout' is
+    a non-negative number, it blocks at most 'timeout' seconds and raises
+    the Empty exception if no matching item was available within that time.
+    Otherwise ('block' is false), return an item if one is immediately
+    available and passes the filter function, else raise the Empty exception
+    ('timeout' is ignored in that case).
+    """
+    block = kwargs.pop("block", True)
+    timeout = kwargs.pop("timeout", None)
+
+    def find_match():
+        """Check for matching messages in queue return (match, pos) tuple"""
+        match = False
+        pos = -1
+        for pos, msg in enumerate(self.queue):
+            match = filter_fn(msg, *args, **kwargs)
+            if match:
+                break
+
+        return match, pos
+
+    def fetch(pos):
+        """Return item at position and remove it"""
+        item = self.queue[pos]
+        del self.queue[pos]
+        return item
+
+    self.not_empty.acquire()
+    try:
+        match = False
+        pos = -1
+        if not block:
+            if not self._qsize():
+                raise queue.Empty
+        elif timeout is None:
+            # Until match is found
+            while True:
+                # Check for matching message in queue
+                match, pos = find_match()
+
+                # Break immediately if we found a match so we don't block
+                # indefinitely waiting on a new message to arrive
+                if match:
+                    break
+
+                # Wait for a new message to be placed on the queue
+                self.not_empty.wait()
+        elif timeout < 0:
+            raise ValueError("'timeout' must be a non-negative number")
         else:
-            # Save unmatching messages
-            saved_msgs.append(msg)
+            endtime = _time() + timeout
+            while True:
+                # Check for matching message in queue
+                match, pos = find_match()
 
-    return msg
+                # Break immediately if we found a match so we don't block
+                # indefinitely waiting on a new message to arrive
+                if match:
+                    break
+
+                # Raise queue.Empty exception if we have timed out
+                remaining = endtime - _time()
+                if remaining <= 0.0:
+                    raise queue.Empty
+
+                # Wait for a new message to be placed on the queue
+                self.not_empty.wait(remaining)
+
+        # Return item at position where match occurred
+        item = fetch(pos)
+        self.not_full.notify()
+        return item
+    finally:
+        self.not_empty.release()
+
+# Add this function as a method on the Queue class
+queue.Queue.filter_get = filter_get
 
 
-def source_filter(msg, source):
-    return msg.source.handle == source
+# Function used to filter the message queue for a matching source handle
+def source_filter(msg, source_handle):
+    return msg.source.handle == source_handle
 
 
 class HandleableMsg(object):
@@ -91,17 +157,19 @@ class Mailbox(object):
         # return message in case we need to wait for it to be handled
         return msg
 
-    def get(self, msg_handle, wait=False, source=None, timeout=None):
+    def get(self, msg_handle, block=False, source=None, timeout=None):
         self._check_msg_queue_exists(msg_handle)
 
         msg_queue = self._msg_queues[msg_handle]
         try:
             if source is None:
-                return msg_queue.get(wait, timeout)
+                return msg_queue.get(block, timeout)
             else:
-                return msg_filter(msg_queue, wait, timeout, source_filter, source)
+                return msg_queue.filter_get(source_filter, source,
+                                            block=block,
+                                            timeout=timeout)
         except queue.Empty:
-            if wait and timeout is not None:
+            if block and timeout is not None:
                 raise MailboxTimeout("Timed out waiting for message '{0}'"
                                      .format(msg_handle))
             else:
@@ -120,7 +188,7 @@ class Mailbox(object):
 
         Raises MailboxTimeout exception on timeout.
         """
-        msg = self.get(msg_handle, wait=True, source=source, timeout=timeout)
+        msg = self.get(msg_handle, block=True, source=source, timeout=timeout)
 
         # If the message was empty we have timed out and we should raise an exception
         if not msg:
@@ -133,8 +201,8 @@ class Mailbox(object):
         else:
             msg.set_handled()
 
-    def send(self, msg_handle, msg_data=None, target=None, wait=False, timeout=None):
-        self.msg_broker.send(msg_handle, msg_data, self, target, wait, timeout)
+    def send(self, msg_handle, msg_data=None, target=None, block=False, timeout=None):
+        self.msg_broker.send(msg_handle, msg_data, self, target, block, timeout)
 
     def subscribe(self, msg_handle):
         self.msg_broker.subscribe(self, msg_handle)
@@ -161,7 +229,8 @@ class MessageBroker(object):
     
             return mailbox
 
-    def send_to_target(self, target, msg_handle, msg_data=None, source=None, wait=False, timeout=None):
+    def send_to_target(self, target, msg_handle, msg_data=None, source=None,
+                       wait_handled=False, timeout=None):
         target_mailbox = self.mailboxes.get(target)
         if target_mailbox is None:
             raise DeliveryFailed("Unable to deliver '{0}' to target '{1}'. "
@@ -170,7 +239,7 @@ class MessageBroker(object):
 
         msg = target_mailbox.deliver(msg_handle, msg_data, source)
 
-        if wait:
+        if wait_handled:
             # Wait on handled
             msg.wait(timeout)
             if not msg.handled:
@@ -180,7 +249,8 @@ class MessageBroker(object):
             # Handled on receive
             msg.set_handled()
 
-    def send(self, msg_handle, msg_data=None, source=None, target=None, wait=False, timeout=None):
+    def send(self, msg_handle, msg_data=None, source=None, target=None,
+             wait_handled=False, timeout=None):
         """
         Send a message. If target is not set then the message will broadcast
         to all subscribers. If target is set then a directed message will
@@ -189,12 +259,14 @@ class MessageBroker(object):
         If the target mailbox is not found then a DeliveryFailed error is
         raised.
 
-        If the wait parameter is set to true (default) this method will block
-        until all receivers have signaled that they have handled the message.
+        If the wait_handled parameter is set to true (default) this method
+        will block until all receivers have signaled that they have handled
+        the message.
         """
         # Send directed message if target is set
         if target is not None:
-            self.send_to_target(target, msg_handle, msg_data, source, wait, timeout)
+            self.send_to_target(target, msg_handle, msg_data, source,
+                                wait_handled, timeout)
 
         # Broadcast message
         else:
@@ -210,7 +282,7 @@ class MessageBroker(object):
                 msg = mailbox.deliver(msg_handle, msg_data, source)
                 msgs.append(msg)
 
-            if wait:
+            if wait_handled:
                 # Wait for messages to be handled
                 handled_flags = []
                 for msg in msgs:
@@ -244,3 +316,8 @@ class MessageBroker(object):
 
             if len(self.subscribers.get(msg_handle)) == 0:
                 del self.subscribers[msg_handle]
+
+
+Mailbox.send.__func__.__doc__ = MessageBroker.send.__func__.__doc__
+Mailbox.subscribe.__func__.__doc__ = MessageBroker.subscribe.__func__.__doc__
+Mailbox.unsubscribe.__func__.__doc__ = MessageBroker.unsubscribe.__func__.__doc__

@@ -38,7 +38,7 @@ class _SeekCoordinator(Thread):
     def run(self):
         while not self.closed and not self.stream.fd.closed:
             try:
-                seek_event = self.mailbox.get("seek_event", wait=True, timeout=1)
+                seek_event = self.mailbox.get("seek_event", block=True, timeout=1)
             except MailboxTimeout:
                 # TODO: Replace poll with mailbox close event that wakes thread with an exception
                 continue  # Used to poll for close event
