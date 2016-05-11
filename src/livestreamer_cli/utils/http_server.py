@@ -128,14 +128,16 @@ class HTTPServer(object):
                 self.complete_length - 1,
                     self.complete_length).encode())
 
-    def content_length_hdr(self, content_range_header):
+    @staticmethod
+    def content_length_hdr(content_range_header):
         match = _content_range_re.match(content_range_header.decode())
         first_byte_pos = int(match.group("first_byte"))
         last_byte_pos = int(match.group("last_byte"))
         content_length = last_byte_pos - first_byte_pos + 1
         return "Content-Length: {0}\r\n".format(content_length).encode()
 
-    def get_seek_pos(self, req):
+    @staticmethod
+    def get_seek_pos(req):
         """
         :param req: HTTP request
         :return: Position of the first byte to stream or 0 if no seek position
@@ -149,6 +151,19 @@ class HTTPServer(object):
         seek_pos = int(match.group("first_byte"))
         return seek_pos
 
+    @staticmethod
+    def recv_req(conn):
+        """
+        Receive from the socket until a complete HTTP request (with headers)
+        has been received
+        """
+        total_data = BytesIO()
+        while True:
+            total_data.write(conn.recv(1024))
+            if b"\r\n\r\n" in total_data.getvalue():
+                break
+        return total_data.getvalue()
+
     def open(self, timeout=30):
         self.socket.settimeout(timeout)
 
@@ -159,7 +174,8 @@ class HTTPServer(object):
             raise OSError("Socket accept timed out")
 
         try:
-            req_data = conn.recv(1024)
+            # Continuously receive from the socket until the request is complete
+            req_data = self.recv_req(conn)
         except socket.error:
             raise OSError("Failed to read data from socket")
 
