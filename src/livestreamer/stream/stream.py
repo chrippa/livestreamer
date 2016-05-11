@@ -1,6 +1,8 @@
 import io
 import json
 
+from livestreamer.message_broker import MessageBroker
+
 
 class Stream(object):
     __shortname__ = "stream"
@@ -13,6 +15,7 @@ class Stream(object):
     def __init__(self, session):
         self.session = session
         self.supports_seek = False
+        self.msg_broker = MessageBroker()
 
     def __repr__(self):
         return "<Stream()>"
