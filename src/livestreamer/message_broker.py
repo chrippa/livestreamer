@@ -1,5 +1,5 @@
-from collections import defaultdict, deque
-from .compat import queue
+from collections import defaultdict
+from .compat import queue, is_py3
 from threading import Condition, Lock
 from livestreamer.exceptions import RegistrationFailed, DeliveryFailed, DeliveryTimeout, NotSubscribed, MailboxTimeout
 
@@ -317,7 +317,12 @@ class MessageBroker(object):
             if len(self.subscribers.get(msg_handle)) == 0:
                 del self.subscribers[msg_handle]
 
+if is_py3:
+    Mailbox.send.__doc__ = MessageBroker.send.__doc__
+    Mailbox.subscribe.__doc__ = MessageBroker.subscribe.__doc__
+    Mailbox.unsubscribe.__doc__ = MessageBroker.unsubscribe.__doc__
+else:
+    Mailbox.send.__func__.__doc__ = MessageBroker.send.__func__.__doc__
+    Mailbox.subscribe.__func__.__doc__ = MessageBroker.subscribe.__func__.__doc__
+    Mailbox.unsubscribe.__func__.__doc__ = MessageBroker.unsubscribe.__func__.__doc__
 
-Mailbox.send.__func__.__doc__ = MessageBroker.send.__func__.__doc__
-Mailbox.subscribe.__func__.__doc__ = MessageBroker.subscribe.__func__.__doc__
-Mailbox.unsubscribe.__func__.__doc__ = MessageBroker.unsubscribe.__func__.__doc__
