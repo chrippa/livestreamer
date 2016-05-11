@@ -207,7 +207,7 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
 
                     # Notify livestreamer threads
                     msg_broker = stream.msg_broker
-                    msg_broker.send("seek_event", seek_pos, wait=True)
+                    msg_broker.send("seek_event", seek_pos, wait_handled=True)
 
             # Seek msg handled by all subscribing threads. Proceed with stream
 

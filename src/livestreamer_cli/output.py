@@ -90,7 +90,6 @@ class PlayerOutput(Output):
 
     @property
     def running(self):
-        sleep(0.5)
         self.player.poll()
         return self.player.returncode is None
 
