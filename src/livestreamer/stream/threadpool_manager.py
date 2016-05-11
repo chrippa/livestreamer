@@ -1,5 +1,5 @@
 import weakref
-from collections import Counter
+from ..compat import Counter
 from concurrent.futures import ThreadPoolExecutor, _base
 from threading import Lock, RLock, Condition
 from concurrent.futures.thread import _WorkItem
