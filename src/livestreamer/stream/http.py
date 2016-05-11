@@ -3,7 +3,6 @@ from threading import Thread
 
 import requests
 
-from livestreamer.message_broker import MessageBroker
 from .stream import Stream
 from .wrappers import StreamIOThreadWrapper, StreamIOIterWrapper
 from ..exceptions import StreamError, MailboxTimeout
@@ -106,7 +105,6 @@ class HTTPStream(Stream):
         self.args = dict(url=url, **args)
         self.buffered = buffered
         self.complete_length = None
-        self.msg_broker = MessageBroker()
         self.mailbox = self.msg_broker.register("http")
         self.fd = None
         self.res = None
