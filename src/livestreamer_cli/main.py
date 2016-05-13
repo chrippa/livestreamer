@@ -107,7 +107,7 @@ def create_http_server(host=None, port=0):
     return http
 
 
-def iter_http_requests(server, player, continuous):
+def iter_http_requests(server, player):
     """Repeatedly accept HTTP connections on a server.
 
     Forever if the serving externally, or while a player is running if it is not
@@ -118,10 +118,7 @@ def iter_http_requests(server, player, continuous):
         try:
             yield server.open(timeout=2.5)
         except OSError:
-            if continuous:
-                continue
-            else:
-                break
+            break
 
 
 def output_stream_http(plugin, initial_streams, external=False, port=0, continuous=True):
@@ -154,84 +151,101 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
         for url in server.urls:
             console.logger.info(" " + url)
 
-    stream = stream_fd = prebuffer = None
-    # Listen for requests from player on HTTPServer
-    for req in iter_http_requests(server, player, continuous):
-        user_agent = req.headers.get("User-Agent") or "unknown player"
-        console.logger.info("Got HTTP request from {0}".format(user_agent))
+    continuing = True
+    while continuing and (not player or player.running):
+        stream = stream_fd = prebuffer = None
+        # Listen for requests from player on HTTPServer
+        for req in iter_http_requests(server, player):
+            user_agent = req.headers.get("User-Agent") or "unknown player"
+            console.logger.info("Got HTTP request from {0}".format(user_agent))
 
-        # Open remote stream for read
-        while not stream_fd and (not player or player.running):
-            try:
-                streams = initial_streams or fetch_streams(plugin)
-                initial_streams = None
-
-                for stream_name in (resolve_stream_name(streams, s) for s in args.stream):
-                    if stream_name in streams:
-                        stream = streams[stream_name]
-                        break
-                else:
-                    console.logger.info("Stream not available, will re-fetch "
-                                        "streams in 10 sec")
-                    sleep(10)
-                    continue
-            except PluginError as err:
-                console.logger.error(u"Unable to fetch new streams: {0}", err)
-                continue
-
-            try:
-                console.logger.info("Opening stream: {0} ({1})", stream_name,
-                                    type(stream).shortname())
-                stream_fd, prebuffer = open_stream(stream)
-
-                # Enable seek support if stream supports it
-                if stream.supports_seek:
-                    server.enable_seek(stream.complete_length)
-
-            except StreamError as err:
-                console.logger.error("{0}", err)
-                # Exit program on error if we are not running in continuous mode
-                if not continuous:
-                    break
-
-        # If stream is open then handle the request
-        if stream_fd and not stream_fd.closed:
-            # Handle seek events
-            got_seek = False
-            if stream.supports_seek:
-                seek_pos = server.get_seek_pos(req)
-                if seek_pos:
-                    got_seek = True
-                    # Need to clear the prebuffer so we don't write it out again
-                    prebuffer = b""
-
-                    # Notify livestreamer threads
-                    msg_broker = stream.msg_broker
-                    msg_broker.send("seek_event", seek_pos, wait_handled=True)
-
-            # Seek msg handled by all subscribing threads. Proceed with stream
-
-            # Proceed only if we got a prebuffer or we are seeking
-            if got_seek or prebuffer:
-                # Send header for response to player request through local
-                # HTTPServer socket
+            # Open remote stream for read
+            if not stream_fd and (not player or player.running):
                 try:
-                    server.send_header(req)
-                except socket.error as err:
-                    console.logger.error("{0}", err)
-                    server.close()
+                    streams = initial_streams or fetch_streams(plugin)
+                    initial_streams = None
+
+                    for stream_name in (resolve_stream_name(streams, s) for s in args.stream):
+                        if stream_name in streams:
+                            stream = streams[stream_name]
+                            break
+                    else:
+                        console.logger.info("Stream not available, will re-fetch "
+                                            "streams in 10 sec")
+                        sleep(10)
+                        continue
+                except PluginError as err:
+                    console.logger.error(u"Unable to fetch new streams: {0}", err)
                     continue
 
-                # Continuously read data from remote stream and write out through
-                # local HTTPServer socket
-                console.logger.debug("Writing stream to player")
-                read_stream(stream_fd, server, prebuffer)
+                try:
+                    console.logger.info("Opening stream: {0} ({1})", stream_name,
+                                        type(stream).shortname())
+                    stream_fd, prebuffer = open_stream(stream)
 
-        server.close(True)
+                    # Enable seek support if stream supports it
+                    if stream.supports_seek:
+                        server.enable_seek(stream.complete_length, stream.duration, stream.content_type)
 
-    console.logger.info("Stream ended")
-    if stream_fd:
-        stream_fd.close()
+                except StreamError as err:
+                    console.logger.error("{0}", err)
+                    # Exit program on error if we are not running in continuous mode
+                    if not continuous:
+                        break
+
+            # If stream is open then handle the request
+            if stream_fd and not stream_fd.closed:
+                # Handle seek events
+                got_seek = False
+                if stream.supports_seek:
+                    seek_pos = server.get_seek_pos(req)
+                    if seek_pos:
+                        got_seek = True
+                        # Need to clear the prebuffer so we don't write it out again
+                        prebuffer = b""
+
+                        # Notify livestreamer threads
+                        msg_broker = stream.msg_broker
+                        msg_broker.send("seek_event", seek_pos, wait_handled=True)
+
+                # Seek msg handled by all subscribing threads. Proceed with stream
+
+                # Proceed only if we got a prebuffer or we are seeking
+                if got_seek or prebuffer:
+                    # Send header for response to player request through local
+                    # HTTPServer socket
+                    try:
+                        server.send_header(req)
+                    except socket.error as err:
+                        console.logger.error("{0}", err)
+                        server.close()
+                        continue
+
+                    # Continuously read data from remote stream and write out through
+                    # local HTTPServer socket
+                    console.logger.debug("Writing stream to player")
+                    read_stream(stream_fd, server, prebuffer)
+
+            server.close(True)
+
+        # Shutdown stream
+        if stream_fd:
+            console.logger.info("Stream ended")
+        try:
+            stream.close()
+        except AttributeError:
+            pass
+        try:
+            stream_fd.close()
+        except AttributeError:
+            pass
+
+        # If continuous then loop back to the top
+        if continuous:
+            continuing = True
+        else:
+            continuing = False
+
     player.close()
     server.close()
 
