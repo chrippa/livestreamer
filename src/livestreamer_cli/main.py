@@ -215,7 +215,12 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
                     # Send header for response to player request through local
                     # HTTPServer socket
                     try:
-                        server.send_header(req)
+                        seek_offset = 0
+                        try:
+                            seek_offset = stream.seek_offset
+                        except AttributeError:
+                            pass
+                        server.send_header(req, seek_offset)
                     except socket.error as err:
                         console.logger.error("{0}", err)
                         server.close()

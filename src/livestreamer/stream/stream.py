@@ -15,6 +15,9 @@ class Stream(object):
     def __init__(self, session):
         self.session = session
         self.supports_seek = False
+        self.complete_length = None
+        self.duration = None
+        self.content_type = None
         self.msg_broker = MessageBroker()
 
     def __repr__(self):

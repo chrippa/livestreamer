@@ -85,6 +85,9 @@ class ThreadPoolManager(ThreadPoolExecutor):
         """
         with self._shutdown_lock:
             work_group_id = kwargs.pop("work_group_id", 0)
+            if work_group_id is None:
+                work_group_id = 0
+
             if self._shutdown or work_group_id != self._running_group:
                 raise RuntimeError('cannot schedule new futures after shutdown')
 

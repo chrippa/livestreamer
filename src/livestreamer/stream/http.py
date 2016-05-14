@@ -21,7 +21,7 @@ def valid_args(args):
     return dict(filter(lambda kv: kv[0] in argspec.args, args.items()))
 
 
-class _SeekCoordinator(Thread):
+class SeekCoordinator(Thread):
     def __init__(self, stream):
         self.stream = stream
         self.logger = stream.logger
@@ -183,7 +183,7 @@ class HTTPStream(Stream):
             self.supports_seek = True
             self.args = self.add_range_hdr(0, "", self.args)
 
-            self.seek_coordinator = _SeekCoordinator(self)
+            self.seek_coordinator = SeekCoordinator(self)
             self.seek_coordinator.start()
 
         return self.fd

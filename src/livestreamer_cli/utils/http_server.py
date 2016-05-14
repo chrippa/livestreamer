@@ -42,16 +42,23 @@ class HTTPServer(object):
         self.bound = False
         self._supports_seek = False
         self._complete_length = None
+        self._duration = None
+        self._content_type = None
 
-    def enable_seek(self, complete_length):
+    def enable_seek(self, complete_length, duration, content_type):
         """
         Enable communicating to the client that we support seek events
 
-        :param complete_length: The complete length of the content to stream
+        :param complete_length: The complete length (in bytes) of the media
+                                to be streamed
+        :param duration: The content duration of the media to be streamed
+        :param content_type: The content type of the media to be streamed
         :return:
         """
         self._supports_seek = True
         self._complete_length = complete_length
+        self._duration = duration
+        self._content_type = content_type
 
     @property
     def supports_seek(self):
@@ -60,6 +67,15 @@ class HTTPServer(object):
     @property
     def complete_length(self):
         return self._complete_length
+
+    @property
+    def duration(self):
+        return self._duration
+
+    @property
+    def content_type(self):
+        return self._content_type
+
     @property
     def addresses(self):
         if self.host:
@@ -97,44 +113,58 @@ class HTTPServer(object):
         if self.host == "0.0.0.0":
             self.host = None
 
-    def content_range_hdr(self, headers):
-        range_header = headers.get("Range")
+    def content_range_hdr(self, req_headers, seek_offset=0):
+        range_header = req_headers.get("Range")
         if range_header:
             match = _range_re.match(range_header)
             if match:
-                first_byte_pos = int(match.group("first_byte"))
+                # Adjust content range to match response
+                first_byte = int(match.group("first_byte")) - seek_offset
                 if match.group("last_byte"):
-                    last_byte_pos = int(match.group("last_byte"))
+                    last_byte = int(match.group("last_byte"))
                 else:
-                    last_byte_pos = None
+                    last_byte = None
 
                 # Handle requests that don't specify an end byte
-                if last_byte_pos is None:
-                    last_byte_pos = self.complete_length - 1
+                if last_byte is None:
+                    last_byte = self.complete_length - 1
 
                 # Make sure we don't overrun end of file
-                if last_byte_pos >= self.complete_length:
-                    last_byte_pos = self.complete_length - 1
+                if last_byte >= self.complete_length:
+                    last_byte = self.complete_length - 1
 
                 return ("Content-Range: bytes {0}-{1}/{2}\r\n".format(
-                        first_byte_pos,
-                        last_byte_pos,
+                        first_byte,
+                        last_byte,
                         self.complete_length).encode())
             else:
                 raise OSError("Uninterpretable range header: Range: {0}"
                               .format(range_header))
         else:
             return ("Content-Range: bytes 0-{0}/{1}\r\n".format(
-                self.complete_length - 1,
+                    self.complete_length - 1,
                     self.complete_length).encode())
 
-    @staticmethod
-    def content_length_hdr(content_range_header):
+    def content_length_hdr(self, content_range_header):
         match = _content_range_re.match(content_range_header.decode())
         first_byte_pos = int(match.group("first_byte"))
         last_byte_pos = int(match.group("last_byte"))
         content_length = last_byte_pos - first_byte_pos + 1
         return "Content-Length: {0}\r\n".format(content_length).encode()
+
+    def content_duration_hdr(self):
+        if self.duration:
+            return ("X-Content-Duration: {0}\r\n"
+                    "Content-Duration: {0}\r\n"
+                    .format(self.duration).encode())
+        else:
+            return b""
+
+    def content_type_hdr(self):
+        if self.content_type:
+            return "Content-Type: {0}\r\n".format(self.content_type).encode()
+        else:
+            return b""
 
     @staticmethod
     def get_seek_pos(req):
@@ -207,17 +237,20 @@ class HTTPServer(object):
         if not client_only:
             self.socket.close()
 
-    def send_header(self, req):
+    def send_header(self, req, seek_offset=0):
         try:
             if self.supports_seek:
-                content_range_hdr = self.content_range_hdr(req.headers)
+                content_range_hdr = self.content_range_hdr(req.headers, seek_offset)
                 content_length_hdr = self.content_length_hdr(content_range_hdr)
+                content_duration_hdr = self.content_duration_hdr()
+                content_type_hdr = self.content_type_hdr()
 
                 self.conn.send(b"HTTP/1.1 206 Partial Content\r\n")
                 self.conn.send(b"Accept-Ranges: bytes\r\n")
                 self.conn.send(content_range_hdr)
                 self.conn.send(content_length_hdr)
-                # TODO: Get content duration for accurate seek control
+                self.conn.send(content_duration_hdr)
+                self.conn.send(content_type_hdr)
             else:
                 self.conn.send(b"HTTP/1.1 200 OK\r\n")
 

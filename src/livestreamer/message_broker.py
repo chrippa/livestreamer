@@ -157,17 +157,24 @@ class Mailbox(object):
         # return message in case we need to wait for it to be handled
         return msg
 
-    def get(self, msg_handle, block=False, source=None, timeout=None):
+    def get(self, msg_handle, block=False, leave_msg=False, source=None, timeout=None):
         self._check_msg_queue_exists(msg_handle)
 
         msg_queue = self._msg_queues[msg_handle]
         try:
             if source is None:
-                return msg_queue.get(block, timeout)
+                msg = msg_queue.get(block, timeout)
             else:
-                return msg_queue.filter_get(source_filter, source,
-                                            block=block,
-                                            timeout=timeout)
+                msg = msg_queue.filter_get(source_filter, source,
+                                           block=block,
+                                           timeout=timeout)
+
+            # Add the message back to the queue if the leave_msg argument is True
+            if leave_msg:
+                self._msg_queues[msg_handle].put(msg)
+
+            return msg
+
         except queue.Empty:
             if block and timeout is not None:
                 raise MailboxTimeout("Timed out waiting for message '{0}'"
@@ -188,17 +195,15 @@ class Mailbox(object):
 
         Raises MailboxTimeout exception on timeout.
         """
-        msg = self.get(msg_handle, block=True, source=source, timeout=timeout)
+        # The get method will decide whether to leave the message on the queue
+        msg = self.get(msg_handle, block=True, leave_msg=leave_msg, source=source, timeout=timeout)
 
         # If the message was empty we have timed out and we should raise an exception
         if not msg:
             raise MailboxTimeout("Timed out waiting for message '{0}'"
                                  .format(msg_handle))
 
-        # Discard message or put it back on the queue to be handled later
-        if leave_msg:
-            self._msg_queues[msg_handle].put(msg)
-        else:
+        if not leave_msg:
             msg.set_handled()
 
     def send(self, msg_handle, msg_data=None, target=None, block=False, timeout=None):

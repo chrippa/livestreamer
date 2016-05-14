@@ -5,73 +5,10 @@ from livestreamer.stream.threadpool_manager import ThreadPoolManager
 from .http import HTTPStream
 from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
-                        SegmentedStreamWorker)
+                        SegmentedStreamWorker, SeekCoordinator)
 from ..exceptions import StreamError, MailboxTimeout
 from .streaming_response import Segment, ByteRange, StreamingResponse
 from ..compat import queue
-
-
-class _SeekCoordinator(Thread):
-    def __init__(self, reader):
-        self.work_queue = reader.writer.futures
-        self.logger = reader.session.logger.new_module("stream.seek_coord")
-        self.mailbox = reader.stream.msg_broker.register("seek_coordinator")
-        self.mailbox.subscribe("seek_event")
-        self.closed = False
-
-        Thread.__init__(self)
-        self.daemon = True
-
-    def run(self):
-        while not self.closed:
-            try:
-                seek_event = self.mailbox.get("seek_event", block=True, timeout=1)
-                self.logger.debug("Seek coordinator received a seek event")
-            except MailboxTimeout:
-                # TODO: Replace poll with mailbox close event that wakes thread with an exception
-                continue  # Used to poll for close event
-            else:
-                # Wait for the writer to enter a ready state first so it can't
-                # block trying to fetch work from an empty work queue
-                # TODO: Replace with barrier (needs to be compatible with python 2.7)
-                self.logger.debug("Waiting for writer thread")
-                self.mailbox.wait_on_msg("waiting on restart", source="writer")
-
-                # Flush work queue and poll worker for ready state
-                queue_empty = False
-                worker_ready = False
-                self.logger.debug("Flushing work queue and polling worker thread")
-                while not worker_ready or not queue_empty:
-                    if not worker_ready:
-                        # TODO: Replace with barrier (needs to be compatible with python 2.7)
-                        worker_ready = self.mailbox.get("waiting on restart",
-                                                        source="worker")
-                        if worker_ready:
-                            self.logger.debug("Worker ready, finishing queue flush")
-                    try:
-                        work_item = self.work_queue.get(block=False)
-                        segment = work_item[0]
-                        self.logger.debug("Dropping segment {0}-{1}, "
-                                          "group id {id} from the work queue"
-                                          .format(*segment.byte_range,
-                                                  id=segment.group_id))
-                        queue_empty = self.work_queue.empty()
-                    except queue.Empty:
-                        queue_empty = self.work_queue.empty()
-
-                # Queue has been flush so it is safe to restart threads
-                # TODO: Replace with barrier wait (needs to be compatible with python 2.7)
-                self.logger.debug("Queue flush complete, restarting worker and writer threads")
-                self.mailbox.send("restart", target="worker")
-                self.mailbox.send("restart", target="writer")
-
-                # Notify waiting threads that the seek event has been handled
-                seek_event.set_handled()
-
-    def close(self):
-        self.closed = True
-        # TODO: Replace with mailbox close that wakes waiting threads with an exception
-        self.mailbox.unsubscribe("seek_event")
 
 
 class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
@@ -166,20 +103,6 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                                  download_timeout=self.timeout,
                                  read_timeout=self.reader.timeout,
                                  ).start()
-
-    def put(self, segment):
-        """Adds a segment to the download pool and write queue."""
-        if self.closed:
-            return
-
-        if segment is not None:
-            future = self.executor.submit(self.fetch, segment,
-                                          retries=self.retries,
-                                          work_group_id=segment.group_id)
-        else:
-            future = None
-
-        self.queue(self.futures, (segment, future))
 
     def seek_event(self):
         with self.mailbox.get("seek_event") as seek_event:
@@ -278,7 +201,7 @@ class SegmentedHTTPStreamReader(SegmentedStreamReader):
     def open(self):
         SegmentedStreamReader.open(self)
         if self.stream.supports_seek:
-            self.seek_coordinator = _SeekCoordinator(self)
+            self.seek_coordinator = SeekCoordinator(self)
             self.seek_coordinator.start()
 
     def close(self):
