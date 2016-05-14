@@ -19,6 +19,7 @@ class Stream(object):
         self.duration = None
         self.content_type = None
         self.msg_broker = MessageBroker()
+        self.player_range_adjust = 0
 
     def __repr__(self):
         return "<Stream()>"

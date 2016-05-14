@@ -1,7 +1,7 @@
 from collections import defaultdict, namedtuple
-from io import BytesIO
-
-from livestreamer.buffers import Buffer, RingBuffer
+from ..buffers import RingBuffer
+from .streaming_response import StreamingResponse
+from .threadpool_manager import ThreadPoolManager
 
 try:
     from Crypto.Cipher import AES
@@ -32,19 +32,18 @@ class Sequence(_Sequence):
     def __init__(self, *args, **kwargs):
         super(Sequence, self).__init__()
         self.seek_meta = None
-        self.seek_offset = 0
         self.group_id = 0
 
 
 class HLSStreamWriter(SegmentedStreamWriter):
     def __init__(self, reader, *args, **kwargs):
-        self.cur_group = 0
         options = reader.stream.session.options
         kwargs["retries"] = options.get("hls-segment-attempts")
         kwargs["threads"] = options.get("hls-segment-threads")
         kwargs["timeout"] = options.get("hls-segment-timeout")
         SegmentedStreamWriter.__init__(self, reader, *args, **kwargs)
 
+        self.executor = ThreadPoolManager(kwargs["threads"])
         self.byterange_offsets = defaultdict(int)
         self.key_data = None
         self.key_uri = None
@@ -92,42 +91,21 @@ class HLSStreamWriter(SegmentedStreamWriter):
         return request_params
 
     def fetch(self, sequence, retries=None):
-        def stop_download():
-            return (self.closed or
-                    not retries or
-                    sequence.group_id != self.cur_group)
-
-        if stop_download():
-            self.logger.debug("Download of segment {0} cancelled", sequence.num)
+        shutdown_event = self.executor.running_group != sequence.group_id
+        if shutdown_event or self.closed:
             return
 
-        try:
-            request_params = self.create_request_params(sequence)
-            resp = self.session.http.get(sequence.segment.uri,
-                                         timeout=self.timeout,
-                                         exception=StreamError,
-                                         stream=True,
-                                         **request_params)
-
-            resp_imposter = lambda: None
-            content_buf = Buffer()
-            for chunk in resp.iter_content(8192):
-                # If the group this sequence belongs to is no longer active...
-                # Then terminate this download
-                if stop_download():
-                    resp.close()
-                    self.logger.debug("Download of segment {0} cancelled", sequence.num)
-                    return
-                content_buf.write(chunk)
-            resp_imposter.content = content_buf.read()
-
-            return resp_imposter
-
-        except StreamError as err:
-            self.logger.error("Failed to open segment {0}: {1}", sequence.num, err)
-            return self.fetch(sequence, retries - 1)
+        return StreamingResponse(self.session, self.executor,
+                                 sequence.segment.uri,
+                                 group_id=sequence.group_id,
+                                 request_params=self.reader.request_params,
+                                 retries=retries,
+                                 download_timeout=self.timeout,
+                                 read_timeout=self.reader.timeout,
+                                 ).start()
 
     def write(self, sequence, res, chunk_size=8192):
+        decryptor = None
         if sequence.segment.key and sequence.segment.key.method != "NONE":
             try:
                 decryptor = self.create_decryptor(sequence.segment.key,
@@ -137,19 +115,27 @@ class HLSStreamWriter(SegmentedStreamWriter):
                 self.close()
                 return
 
-            # If the input data is not a multiple of 16, cut off any garbage
-            garbage_len = len(res.content) % 16
-            if garbage_len:
-                self.logger.debug("Cutting off {0} bytes of garbage "
-                                  "before decrypting", garbage_len)
-                content = decryptor.decrypt(res.content[:-(garbage_len)])
-            else:
-                content = decryptor.decrypt(res.content)
-        else:
-            content = res.content
+        for chunk in res.iter_content(chunk_size):
+            if decryptor:
+                # If the input data is not a multiple of 16, cut off any garbage
+                garbage_len = len(chunk) % 16
+                if garbage_len:
+                    self.logger.debug("Cutting off {0} bytes of garbage "
+                                      "before decrypting", garbage_len)
+                    chunk = decryptor.decrypt(chunk[:-(garbage_len)])
+                else:
+                    chunk = decryptor.decrypt(chunk)
+    
+            self.reader.buffer.write(chunk)
 
-        self.reader.buffer.write(content)
-        self.logger.debug("Download of segment {0} complete", sequence.num)
+        if res.consumed:
+            self.logger.debug("Streaming of segment {0}, group id {1} to "
+                              "buffer complete",
+                              sequence.num, sequence.group_id)
+        else:
+            self.logger.debug("Streaming of segment {0}, group id {1} to "
+                              "buffer cancelled",
+                              sequence.num, sequence.group_id)
 
         # I retrieve a seek event...
         # Pause until we have flushed the work queue of old segments
@@ -253,17 +239,16 @@ class HLSStreamWorker(SegmentedStreamWorker):
     def valid_sequence(self, sequence):
         return sequence.num >= self.playlist_sequence
 
-    def get_seek_offsets(self, seek_pos):
-        for i, sequence in enumerate(self.playlist_sequences):
+    def get_seq_idx(self, seek_pos):
+        for idx, sequence in enumerate(self.playlist_sequences):
             first_byte = sequence.seek_meta.segment_offset
             last_byte = first_byte + sequence.seek_meta.segment_length - 1
             if first_byte <= seek_pos <= last_byte:
-                sequence.seek_offset = seek_pos - first_byte
-                self.stream.seek_offset = sequence.seek_offset
-                return i
+                self.stream.player_range_adjust = -(seek_pos - first_byte)
+                return idx
 
     def iter_segments(self):
-        work_group_id = 0
+        group_id = 0
         seq_start_pos = 0
         while not self.closed:
             # I have retrieved a seek event
@@ -272,11 +257,14 @@ class HLSStreamWorker(SegmentedStreamWorker):
             # Wait for the work queue to be flushed and continue
             with self.mailbox.get("seek_event", block=False) as seek_event:
                 if seek_event:
-                    work_group_id += 1
-                    self.writer.cur_group = work_group_id
-                    seek_pos = seek_event.data
-                    seq_start_pos = self.get_seek_offsets(seek_pos)
+                    seq_start_pos = self.get_seq_idx(seek_event.data)
+                    group_id += 1
                     self.playlist_sequence = self.playlist_sequences[seq_start_pos].num
+
+                    self.logger.debug("Worker received a seek event, "
+                                      "new segments start at number {0}, "
+                                      "group id {1}"
+                                      .format(self.playlist_sequence, group_id))
 
                     # Defer to seek coordinator
                     self.mailbox.send("waiting on restart", target="seek_coordinator")
@@ -293,7 +281,7 @@ class HLSStreamWorker(SegmentedStreamWorker):
                     skip_reload = True
                     break
 
-                sequence.group_id = work_group_id
+                sequence.group_id = group_id
                 self.logger.debug("Adding segment {0} to queue, group_id {1}",
                                   sequence.num,
                                   sequence.group_id)

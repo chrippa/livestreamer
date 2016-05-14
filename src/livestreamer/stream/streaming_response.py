@@ -1,10 +1,9 @@
+from contextlib import closing
 from functools import partial
-
-from livestreamer import StreamError
-from livestreamer.buffers import RingBuffer
 from requests.exceptions import RequestException
-
-from livestreamer.stream import HTTPStream
+from ..exceptions import StreamError
+from ..buffers import RingBuffer
+from .http import HTTPStream
 
 
 class StreamingResponse:
@@ -75,20 +74,20 @@ class StreamingResponse:
                                          stream=True,
                                          **request_params)
 
-            # Get the segment size
-            self.segment_size = int(resp.headers["Content-Length"])
-            if self.segment_buffer.buffer_size != self.segment_size:
-                self.segment_buffer.resize(self.segment_size)
+            with closing(resp):
+                # Get the segment size
+                self.segment_size = int(resp.headers["Content-Length"])
+                if self.segment_buffer.buffer_size != self.segment_size:
+                    self.segment_buffer.resize(self.segment_size)
 
-            for chunk in resp.iter_content(self.chunk_size):
-                # Poll for events that indicate we should terminate the download
-                if self.shutdown_event:
-                    resp.close()
-                    self.close()
-                    return
+                for chunk in resp.iter_content(self.chunk_size):
+                    # Poll for events that indicate we should terminate the download
+                    if self.shutdown_event:
+                        self.close()
+                        return
 
-                self.segment_buffer.write(chunk)
-                self.buffered_data += len(chunk)
+                    self.segment_buffer.write(chunk)
+                    self.buffered_data += len(chunk)
 
             self.logger.debug("Download of {0}, bytes {1}-{2}, group id {3} "
                               "complete",

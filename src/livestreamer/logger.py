@@ -1,6 +1,7 @@
 import sys
 
 from threading import Lock
+from datetime import datetime
 
 
 class Logger(object):
@@ -32,10 +33,18 @@ class Logger(object):
 
         msg = msg.format(*args, **kwargs)
 
+        timestamp = {}
+        if self.level >= 4:
+            Format = "[{timestamp}]" + Logger.Format
+            timestamp["timestamp"] = datetime.now()
+        else:
+            Format = Logger.Format
+
         with self.lock:
-            self.output.write(Logger.Format.format(module=module,
-                                                   level=Logger.Levels[level],
-                                                   msg=msg))
+            self.output.write(Format.format(module=module,
+                                            level=Logger.Levels[level],
+                                            msg=msg,
+                                            **timestamp))
             if hasattr(self.output, "flush"):
                 self.output.flush()
 

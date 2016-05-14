@@ -1,8 +1,8 @@
 from concurrent import futures
 from threading import Thread, Event
 
-from livestreamer.exceptions import MailboxTimeout
-from livestreamer.stream.threadpool_manager import ThreadPoolManager
+from ..exceptions import MailboxTimeout
+from .threadpool_manager import ThreadPoolManager
 from .stream import StreamIO
 from ..buffers import RingBuffer
 from ..compat import queue
@@ -10,6 +10,7 @@ from ..compat import queue
 
 class SeekCoordinator(Thread):
     def __init__(self, reader):
+        self.thread_man = reader.writer.executor
         self.work_queue = reader.writer.futures
         self.logger = reader.session.logger.new_module("stream.seek_coord")
         self.mailbox = reader.stream.msg_broker.register("seek_coordinator")
@@ -28,6 +29,11 @@ class SeekCoordinator(Thread):
                 # TODO: Replace poll with mailbox close event that wakes thread with an exception
                 continue  # Used to poll for close event
             else:
+                # Starts shutdown of prev work group
+                prev_group_id = self.thread_man.running_group
+                group_id = prev_group_id + 1
+                self.thread_man.set_running_group(group_id, wait_shutdown=False)
+
                 # Wait for the writer to enter a ready state first so it can't
                 # block trying to fetch work from an empty work queue
                 # TODO: Replace with barrier (needs to be compatible with python 2.7)

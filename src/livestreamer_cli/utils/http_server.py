@@ -113,20 +113,17 @@ class HTTPServer(object):
         if self.host == "0.0.0.0":
             self.host = None
 
-    def content_range_hdr(self, req_headers, seek_offset=0):
+    def content_range_hdr(self, req_headers, range_adjustment=0):
         range_header = req_headers.get("Range")
         if range_header:
             match = _range_re.match(range_header)
             if match:
                 # Adjust content range to match response
-                first_byte = int(match.group("first_byte")) - seek_offset
+                first_byte = int(match.group("first_byte")) + range_adjustment
                 if match.group("last_byte"):
                     last_byte = int(match.group("last_byte"))
                 else:
-                    last_byte = None
-
-                # Handle requests that don't specify an end byte
-                if last_byte is None:
+                    # Handle requests that don't specify an end byte
                     last_byte = self.complete_length - 1
 
                 # Make sure we don't overrun end of file
@@ -237,10 +234,11 @@ class HTTPServer(object):
         if not client_only:
             self.socket.close()
 
-    def send_header(self, req, seek_offset=0):
+    def send_header(self, req, range_adjustment=0):
         try:
             if self.supports_seek:
-                content_range_hdr = self.content_range_hdr(req.headers, seek_offset)
+                content_range_hdr = self.content_range_hdr(req.headers,
+                                                           range_adjustment)
                 content_length_hdr = self.content_length_hdr(content_range_hdr)
                 content_duration_hdr = self.content_duration_hdr()
                 content_type_hdr = self.content_type_hdr()

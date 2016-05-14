@@ -1,6 +1,8 @@
 from collections import namedtuple
-from livestreamer.buffers import RingBuffer
-from livestreamer.stream.threadpool_manager import ThreadPoolManager
+
+from livestreamer.message_broker import HandleableMsg
+from ..buffers import RingBuffer
+from .threadpool_manager import ThreadPoolManager
 from .http import HTTPStream
 from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
@@ -80,7 +82,6 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
 class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
     def __init__(self, reader, **kwargs):
         SegmentedStreamWriter.__init__(self, reader, **kwargs)
-        self.chunk_size = kwargs.setdefault("chunk_size", 8192)
         self.segment_size = reader.segment_size
         self.msg_broker = self.stream.msg_broker
         self.mailbox = self.msg_broker.register("writer")
@@ -93,9 +94,9 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
 
         self.executor = ThreadPoolManager(max_workers=threads)
 
-    def fetch(self, segment, retries=5):
+    def fetch(self, segment, retries=None):
         shutdown_event = self.executor.running_group != segment.group_id
-        if shutdown_event or self.closed or not retries:
+        if shutdown_event or self.closed:
             return
 
         return StreamingResponse(self.session, self.executor, segment.uri,
@@ -108,70 +109,58 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                                  read_timeout=self.reader.timeout,
                                  ).start()
 
-    def seek_event(self):
-        with self.mailbox.get("seek_event") as seek_event:
-            if seek_event:
-                return True
-            else:
-                return False
-
-    def write(self, segment, result):
-        got_seek = self.seek_event()  # Needed in case loop skips due to cancelled downloads
+    def write(self, segment, result, chunk_size=8192):
         try:
-            if not got_seek:
-                self.logger.debug("Streaming segment {0}-{1}, group id {id} to output buffer",
+            self.logger.debug("Streaming segment {0}-{1}, group id {id} to output buffer",
+                              *segment.byte_range,
+                              id=segment.group_id)
+
+            for chunk in result.iter_content(chunk_size):
+                # Write to main buffer
+                self.reader.buffer.write(chunk)
+
+            if result.consumed:
+                self.logger.debug("Streaming of segment {0}-{1}, "
+                                  "group id {id} to buffer complete",
+                                  *segment.byte_range,
+                                  id=segment.group_id)
+            else:
+                self.logger.debug("Streaming of segment {0}-{1}, "
+                                  "group id {id} to buffer cancelled",
                                   *segment.byte_range,
                                   id=segment.group_id)
 
-                for chunk in result.iter_content(self.chunk_size):
-                    # Break on seek events
-                    if self.seek_event():
-                        got_seek = True
-                        break
+            # End of stream
+            seek_event = HandleableMsg(None)
+            last_byte = segment.byte_range.last_byte
+            if last_byte >= (self.complete_length - 1):
+                self.reader.buffer.close()
+                self.logger.info("End of stream reached")
 
-                    # Write to main buffer
-                    self.reader.buffer.write(chunk)
-
-                if result.consumed:
-                    self.logger.debug("Streaming of segment {0}-{1}, "
-                                      "group id {id} to buffer complete",
-                                      *segment.byte_range,
-                                      id=segment.group_id)
-                else:
-                    self.logger.debug("Streaming of segment {0}-{1}, "
-                                      "group id {id} to buffer cancelled",
-                                      *segment.byte_range,
-                                      id=segment.group_id)
-
-                # End of stream
-                last_byte = segment.byte_range.last_byte
-                if last_byte >= (self.complete_length - 1):
-                    self.reader.buffer.close()
-                    self.logger.info("End of stream reached")
-
-                    # Idle waiting on seek events until shutdown
-                    # TODO: Replace poll with mailbox close event that wakes thread with an exception
-                    idle = True
-                    while idle and not self.closed:
-                        try:
-                            self.mailbox.wait_on_msg("seek_event", timeout=1)
-                            got_seek = True
-                            idle = False
-                        except MailboxTimeout:
-                            continue
+                # Idle waiting on seek events until shutdown
+                # TODO: Replace poll with mailbox close event that wakes thread with an exception
+                idle = True
+                while idle and not self.closed:
+                    try:
+                        seek_event = self.mailbox.get("seek_event", block=True,
+                                                      timeout=1)
+                        idle = False
+                    except MailboxTimeout:
+                        continue
 
             # Wait for seek coordinator to restart this thread
-            if got_seek:
-                # Need a new buffer once thread restarts
-                buffer_size = self.reader.buffer.buffer_size
-                self.reader.buffer.close()
-                self.reader.buffer = RingBuffer(buffer_size)
+            with seek_event or self.mailbox.get("seek_event") as seek_event:
+                if seek_event:
+                    # Need a new buffer once thread restarts
+                    buffer_size = self.reader.buffer.buffer_size
+                    self.reader.buffer.close()
+                    self.reader.buffer = RingBuffer(buffer_size)
 
-                # Defer to seek coordinator
-                self.mailbox.send("waiting on restart", target="seek_coordinator")
-                self.logger.debug("Writer thread paused, waiting on seek coordinator")
-                self.mailbox.wait_on_msg("restart")
-                self.logger.debug("Writer thread resumed")
+                    # Defer to seek coordinator
+                    self.mailbox.send("waiting on restart", target="seek_coordinator")
+                    self.logger.debug("Writer thread paused, waiting on seek coordinator")
+                    self.mailbox.wait_on_msg("restart")
+                    self.logger.debug("Writer thread resumed")
 
         except StreamError as err:
             self.logger.error("Unable to recover stream: {0}",
