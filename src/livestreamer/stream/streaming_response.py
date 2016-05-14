@@ -1,4 +1,3 @@
-from collections import namedtuple
 from functools import partial
 
 from livestreamer import StreamError
@@ -7,19 +6,18 @@ from requests.exceptions import RequestException
 
 from livestreamer.stream import HTTPStream
 
-ByteRange = namedtuple("ByteRange", "first_byte last_byte")
-Segment = namedtuple("Segment", "uri byte_range group_id")
-
 
 class StreamingResponse:
-    def __init__(self, session, executor, segment, request_params,
-                 chunk_size=8192, download_timeout=None, read_timeout=None,
-                 retries=None):
+    def __init__(self, session, executor, uri, first_byte="0", last_byte="",
+                 group_id=0, request_params=None, chunk_size=8192,
+                 download_timeout=None, read_timeout=None, retries=None):
         self.closed = False
         self.session = session
         self.executor = executor  # Not owned by the streaming response object
-        self.segment = segment
-        self.request_params = request_params
+        self.uri = uri
+        self.first_byte = first_byte
+        self.last_byte = last_byte
+        self.request_params = request_params or {}
         self.chunk_size = chunk_size
         self.download_timeout = download_timeout
         self.read_timeout = read_timeout
@@ -29,10 +27,11 @@ class StreamingResponse:
         self.exception = None
         self.buffered_data = 0
         self.consumed_data = 0
-        self.segment_size = self.session.options.get("stream-segment-size")
+        self.segment_size = None  # Initially unknown
         # TODO: Implement segment buffer pooling
-        self.segment_buffer = RingBuffer(self.segment_size)
-        self.group_id = self.segment.group_id
+        self.segment_buffer = RingBuffer()
+        self.group_id = group_id
+        self.filename = uri.split("/")[-1].split("?")[0]
 
         if download_timeout is None:
             self.download_timeout = self.session.options.get("stream-segment-timeout")
@@ -62,20 +61,21 @@ class StreamingResponse:
             return
 
         try:
-            self.logger.debug("Started download of segment {0}-{1}, group id {id}",
-                              *self.segment.byte_range,
-                              id=self.segment.group_id)
+            self.logger.debug("Started download of {0}, bytes {1}-{2}, group "
+                              "id {3}",
+                              self.filename, self.first_byte, self.last_byte,
+                              self.group_id)
 
-            first_byte = self.segment.byte_range.first_byte
-            last_byte = self.segment.byte_range.last_byte
-            request_params = HTTPStream.add_range_hdr(first_byte, last_byte,
+            request_params = HTTPStream.add_range_hdr(self.first_byte,
+                                                      self.last_byte,
                                                       self.request_params)
-            resp = self.session.http.get(self.segment.uri,
+            resp = self.session.http.get(self.uri,
                                          timeout=self.download_timeout,
                                          exception=StreamError,
                                          stream=True,
                                          **request_params)
 
+            # Get the segment size
             self.segment_size = int(resp.headers["Content-Length"])
             if self.segment_buffer.buffer_size != self.segment_size:
                 self.segment_buffer.resize(self.segment_size)
@@ -90,24 +90,26 @@ class StreamingResponse:
                 self.segment_buffer.write(chunk)
                 self.buffered_data += len(chunk)
 
-            self.logger.debug("Download of segment {0}-{1}, group id {id} complete",
-                              *self.segment.byte_range,
-                              id=self.segment.group_id)
+            self.logger.debug("Download of {0}, bytes {1}-{2}, group id {3} "
+                              "complete",
+                              self.filename, self.first_byte, self.last_byte,
+                              self.group_id)
 
         except (StreamError, RequestException, IOError) as err:
             # Log exception
-            exception = StreamError("Unable to download segment: {0}-{1}, group id {id} ({err})"
-                                    .format(*self.segment.byte_range,
-                                            id=self.segment.group_id,
-                                            err=err))
+            exception = StreamError("Unable to download {0}, bytes {1}-{2}, "
+                                    "group id {3} ({4})"
+                                    .format(self.filename, self.first_byte,
+                                            self.last_byte, self.group_id,
+                                            err))
             exception.err = err
             self.logger.error("{0}", exception)
 
             # Retry if retry count positive
             if retries and not self.shutdown_event:
-                self.logger.error("Retrying segment {0}-{1}, group id {id}",
-                                  *self.segment.byte_range,
-                                  id=self.segment.group_id)
+                self.logger.error("Retrying {0}, bytes {1}-{2}, group id {3}",
+                                  self.filename, self.first_byte,
+                                  self.last_byte, self.group_id)
                 self._stream_fetch(retries - 1)
 
             # Raise exception if we couldn't recover
@@ -126,7 +128,8 @@ class StreamingResponse:
                                               timeout=self.read_timeout)
         except IOError as err:
             self.close()
-            raise StreamError("Failed to read data from stream: {0}".format(err))
+            raise StreamError("Failed to read data from stream: {0}"
+                              .format(err))
 
         # The streaming response encountered an unrecoverable exception in one
         # of it's download threads. The stream should crash at this point
@@ -146,13 +149,15 @@ class StreamingResponse:
     def close(self):
         if not self.closed:
             if self.consumed:
-                self.logger.debug("Stream of segment {0}-{1}, group id {id} consumed",
-                                  *self.segment.byte_range,
-                                  id=self.segment.group_id)
+                self.logger.debug("Stream of {0}, bytes {1}-{2}, group id {3} "
+                                  "consumed",
+                                  self.filename, self.first_byte,
+                                  self.last_byte, self.group_id)
             else:
-                self.logger.debug("Download of segment {0}-{1}, group id {id} cancelled",
-                                  *self.segment.byte_range,
-                                  id=self.segment.group_id)
+                self.logger.debug("Download of {0}, bytes {1}-{2}, group id "
+                                  "{3} cancelled",
+                                  self.filename, self.first_byte,
+                                  self.last_byte, self.group_id)
 
             self.closed = True
             self.segment_buffer.close()

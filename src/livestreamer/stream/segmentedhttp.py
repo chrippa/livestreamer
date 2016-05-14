@@ -1,5 +1,4 @@
-from threading import Thread
-
+from collections import namedtuple
 from livestreamer.buffers import RingBuffer
 from livestreamer.stream.threadpool_manager import ThreadPoolManager
 from .http import HTTPStream
@@ -7,8 +6,10 @@ from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
                         SegmentedStreamWorker, SeekCoordinator)
 from ..exceptions import StreamError, MailboxTimeout
-from .streaming_response import Segment, ByteRange, StreamingResponse
-from ..compat import queue
+from .streaming_response import StreamingResponse
+
+ByteRange = namedtuple("ByteRange", "first_byte last_byte")
+Segment = namedtuple("Segment", "uri byte_range group_id")
 
 
 class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
@@ -97,8 +98,11 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
         if shutdown_event or self.closed or not retries:
             return
 
-        return StreamingResponse(self.session, self.executor, segment,
-                                 self.reader.request_params,
+        return StreamingResponse(self.session, self.executor, segment.uri,
+                                 first_byte=segment.byte_range.first_byte,
+                                 last_byte=segment.byte_range.last_byte,
+                                 group_id=segment.group_id,
+                                 request_params=self.reader.request_params,
                                  retries=retries,
                                  download_timeout=self.timeout,
                                  read_timeout=self.reader.timeout,
