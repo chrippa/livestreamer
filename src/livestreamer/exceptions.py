@@ -38,6 +38,10 @@ class MailboxTimeout(MessageBrokerError):
     """Mailbox timed out wait for message"""
 
 
+class MailboxClosed(MessageBrokerError):
+    """Tried to call a method on a closed mailbox"""
+
+
 class DeliveryFailed(MessageBrokerError):
     """Was unable to deliver a message"""
 

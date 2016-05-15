@@ -1,92 +1,223 @@
 from collections import defaultdict
 from .compat import queue, is_py3
-from threading import Condition, Lock
-from livestreamer.exceptions import RegistrationFailed, DeliveryFailed, DeliveryTimeout, NotSubscribed, MailboxTimeout
+from threading import Condition, Lock, RLock
+from livestreamer.exceptions import RegistrationFailed, DeliveryFailed, DeliveryTimeout, NotSubscribed, MailboxTimeout, \
+    MailboxClosed
 
-from time import time as _time
+from time import time
 
 
-def filter_get(self, filter_fn, *args, **kwargs):
-    """Remove and return a matching item from the queue.
+class MessageQueue(queue.Queue):
+    def __init__(self, maxsize=0):
+        queue.Queue.__init__(self, maxsize)
 
-    If optional args 'block' is true and 'timeout' is None (the default),
-    block if necessary until a matching item is available. If 'timeout' is
-    a non-negative number, it blocks at most 'timeout' seconds and raises
-    the Empty exception if no matching item was available within that time.
-    Otherwise ('block' is false), return an item if one is immediately
-    available and passes the filter function, else raise the Empty exception
-    ('timeout' is ignored in that case).
-    """
-    block = kwargs.pop("block", True)
-    timeout = kwargs.pop("timeout", None)
+        # Want RLock so that we can acquire the  lock externally
+        self.mutex = RLock()
+        self.not_empty = Condition(self.mutex)
+        self.not_full = Condition(self.mutex)
+        self.all_tasks_done = Condition(self.mutex)
+        self.dummy_cond = Condition(self.mutex)
 
-    def find_match():
-        """Check for matching messages in queue return (match, pos) tuple"""
-        match = False
-        pos = -1
-        for pos, msg in enumerate(self.queue):
-            match = filter_fn(msg, *args, **kwargs)
-            if match:
-                break
+        self.closed = False
 
-        return match, pos
+    # TODO: Replace try finally with context manager wrappers
+    def qsize(self):
+        if self.closed:
+            raise MailboxClosed
 
-    def fetch(pos):
-        """Return item at position and remove it"""
-        item = self.queue[pos]
-        del self.queue[pos]
-        return item
+        try:
+            return queue.Queue.qsize(self)
+        finally:
+            if self.closed:
+                raise MailboxClosed
 
-    self.not_empty.acquire()
-    try:
-        match = False
-        pos = -1
-        if not block:
-            if not self._qsize():
-                raise queue.Empty
-        elif timeout is None:
-            # Until match is found
-            while True:
-                # Check for matching message in queue
-                match, pos = find_match()
+    def empty(self):
+        if self.closed:
+            raise MailboxClosed
 
-                # Break immediately if we found a match so we don't block
-                # indefinitely waiting on a new message to arrive
+        try:
+            return queue.Queue.empty(self)
+        finally:
+            if self.closed:
+                raise MailboxClosed
+
+    def full(self):
+        if self.closed:
+            raise MailboxClosed
+
+        try:
+            return queue.Queue.full(self)
+        finally:
+            if self.closed:
+                raise MailboxClosed
+
+    def task_done(self):
+        if self.closed:
+            raise MailboxClosed
+
+        try:
+            return queue.Queue.task_done(self)
+        finally:
+            if self.closed:
+                raise MailboxClosed
+
+    def put(self, item, block=True, timeout=None):
+        with self.mutex:
+            if self.closed:
+                raise MailboxClosed
+
+            try:
+                return queue.Queue.put(self, item, block, timeout)
+            finally:
+                if self.closed:
+                    # Clean up the message we placed on the queue
+                    for i, msg in enumerate(self.queue):
+                        if msg is item:
+                            del self.queue[i]
+                            break
+
+                    raise MailboxClosed
+
+    def get(self, block=True, timeout=None, leave_msg=False):
+        with self.mutex:
+            if self.closed:
+                raise MailboxClosed
+
+            # Change behavior of get by changing internally called _get method
+            # and also making sure that the not_full condition isn't notified
+            # when leaving messages.
+            if leave_msg:
+                get_backup = self._get
+                not_full_backup = self.not_full
+                self._get = self._peek
+                self.not_full = self.dummy_cond
+
+            try:
+                return queue.Queue.get(self, block, timeout)
+            finally:
+                # Restore any changes made _get method as well as the not_full
+                # condition
+                if leave_msg:
+                    self.not_full = not_full_backup
+                    self._get = get_backup
+
+                if self.closed:
+                    raise MailboxClosed
+
+    def _peek(self):
+        return self.queue[0]
+
+    def join(self):
+        with self.mutex:
+            if self.closed:
+                raise MailboxClosed
+
+            try:
+                queue.Queue.join(self)
+            finally:
+                if self.closed:
+                    raise MailboxClosed
+
+    def filter_get(self, filter_fn, *args, **kwargs):
+        """Remove and return a matching item from the queue.
+
+        If optional, keyword only args, 'block' is true and 'timeout' is None
+        (the default), block if necessary until a matching item is available.
+        If 'timeout' is a non-negative number, it blocks at most 'timeout'
+        seconds and raises the Empty exception if no matching item was
+        available within that time. Otherwise ('block' is false), return an
+        item if one is immediately available and passes the filter function,
+        else raise the Empty exception ('timeout' is ignored in that case).
+
+        If invoked with the optional keyword only argument, leave_msg, set to
+        True, then return matching messages without removing them from the
+        queue.
+        """
+        block = kwargs.pop("block", True)
+        timeout = kwargs.pop("timeout", None)
+        leave_msg = kwargs.pop("leave_msg", False)
+
+        def find_match():
+            """Check for matching messages in queue return (match, pos) tuple"""
+            match = False
+            pos = -1
+            for pos, msg in enumerate(self.queue):
+                match = filter_fn(msg, *args, **kwargs)
                 if match:
                     break
 
-                # Wait for a new message to be placed on the queue
-                self.not_empty.wait()
-        elif timeout < 0:
-            raise ValueError("'timeout' must be a non-negative number")
-        else:
-            endtime = _time() + timeout
-            while True:
-                # Check for matching message in queue
-                match, pos = find_match()
+            return match, pos
 
-                # Break immediately if we found a match so we don't block
-                # indefinitely waiting on a new message to arrive
-                if match:
-                    break
+        def fetch(pos, leave_msg=False):
+            """Return item at position and remove it, unless leave_msg is True."""
+            item = self.queue[pos]
+            if not leave_msg:
+                del self.queue[pos]
+            return item
 
-                # Raise queue.Empty exception if we have timed out
-                remaining = endtime - _time()
-                if remaining <= 0.0:
-                    raise queue.Empty
+        with self.not_empty:
+            if self.closed:
+                raise MailboxClosed
 
-                # Wait for a new message to be placed on the queue
-                self.not_empty.wait(remaining)
+            try:
+                pos = -1
+                if not block:
+                    if not self._qsize():
+                        raise queue.Empty
+                elif timeout is None:
+                    # Until match is found
+                    while True:
+                        # Check for matching message in queue
+                        match, pos = find_match()
 
-        # Return item at position where match occurred
-        item = fetch(pos)
-        self.not_full.notify()
-        return item
-    finally:
-        self.not_empty.release()
+                        # Break immediately if we found a match so we don't block
+                        # indefinitely waiting on a new message to arrive
+                        if match:
+                            break
 
-# Add this function as a method on the Queue class
-queue.Queue.filter_get = filter_get
+                        # Wait for a new message to be placed on the queue
+                        self.not_empty.wait()
+                elif timeout < 0:
+                    raise ValueError("'timeout' must be a non-negative number")
+                else:
+                    endtime = time() + timeout
+                    while True:
+                        # Check for matching message in queue
+                        match, pos = find_match()
+
+                        # Break immediately if we found a match so we don't block
+                        # indefinitely waiting on a new message to arrive
+                        if match:
+                            break
+
+                        # Raise queue.Empty exception if we have timed out
+                        remaining = endtime - time()
+                        if remaining <= 0.0:
+                            raise queue.Empty
+
+                        # Wait for a new message to be placed on the queue
+                        self.not_empty.wait(remaining)
+
+                # Return item at position where match occurred
+                item = fetch(pos, leave_msg=leave_msg)
+                if not leave_msg:
+                    self.not_full.notify()
+                return item
+            finally:
+                if self.closed:
+                    raise MailboxClosed
+
+    def close(self):
+        with self.mutex:
+            if not self.closed:
+                self.closed = True
+
+                self.maxsize = 0  # Make sure we don't block on full queues
+                self._qsize = lambda: 1  # Make sure we don't block on empty queues
+
+                self.not_empty.notify_all()
+                self.not_full.notify_all()
+                self.all_tasks_done.notify_all()
 
 
 # Function used to filter the message queue for a matching source handle
@@ -141,11 +272,12 @@ class Mailbox(object):
         self.msg_broker = msg_broker
         self._msg_queues = {}
         self._dict_lock = Lock()
+        self.closed = False
 
     def _check_msg_queue_exists(self, msg_handle):
         with self._dict_lock:
             if self._msg_queues.get(msg_handle) is None:
-                self._msg_queues[msg_handle] = queue.Queue()
+                self._msg_queues[msg_handle] = MessageQueue()
 
     def deliver(self, msg_handle, msg_data, source=None):
         self._check_msg_queue_exists(msg_handle)
@@ -163,15 +295,12 @@ class Mailbox(object):
         msg_queue = self._msg_queues[msg_handle]
         try:
             if source is None:
-                msg = msg_queue.get(block, timeout)
+                msg = msg_queue.get(block, timeout, leave_msg=leave_msg)
             else:
                 msg = msg_queue.filter_get(source_filter, source,
                                            block=block,
-                                           timeout=timeout)
-
-            # Add the message back to the queue if the leave_msg argument is True
-            if leave_msg:
-                self._msg_queues[msg_handle].put(msg)
+                                           timeout=timeout,
+                                           leave_msg=leave_msg)
 
             return msg
 
@@ -206,6 +335,25 @@ class Mailbox(object):
         if not leave_msg:
             msg.set_handled()
 
+    def close(self):
+        if not self.closed:
+            self.closed = True
+
+            # Close all message queues
+            for msg_handle in self._msg_queues:
+                msg_queue = self._msg_queues[msg_handle]
+                with msg_queue.mutex:
+
+                    # Mark all messages in the queue as handled
+                    for msg in msg_queue.queue:
+                        msg.set_handled()
+
+                    # Close the message queue waking all threads waiting on it
+                    msg_queue.close()
+
+            # De-register the mailbox with the message broker
+            self.msg_broker.deregister(self)
+
     def send(self, msg_handle, msg_data=None, target=None, block=False, timeout=None):
         self.msg_broker.send(msg_handle, msg_data, self, target, block, timeout)
 
@@ -233,6 +381,15 @@ class MessageBroker(object):
                                          "a mailbox with that name already exists")
     
             return mailbox
+
+    def deregister(self, mailbox):
+        with self._lock:
+            for msg_handle in self.subscribers:
+                sub_mailboxes = self.subscribers[msg_handle]
+                if mailbox in sub_mailboxes:
+                    sub_mailboxes.remove(mailbox)
+
+            del self.mailboxes[mailbox.handle]
 
     def send_to_target(self, target, msg_handle, msg_data=None, source=None,
                        wait_handled=False, timeout=None):

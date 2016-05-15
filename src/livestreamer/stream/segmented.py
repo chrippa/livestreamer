@@ -1,7 +1,7 @@
 from concurrent import futures
 from threading import Thread, Event
 
-from ..exceptions import MailboxTimeout
+from ..exceptions import MailboxClosed
 from .threadpool_manager import ThreadPoolManager
 from .stream import StreamIO
 from ..buffers import RingBuffer
@@ -23,68 +23,61 @@ class SeekCoordinator(Thread):
     def run(self):
         while not self.closed:
             try:
-                seek_event = self.mailbox.get("seek_event", block=True, timeout=1)
-                self.logger.debug("Seek coordinator received a seek event")
-            except MailboxTimeout:
-                # TODO: Replace poll with mailbox close event that wakes thread with an exception
-                continue  # Used to poll for close event
-            else:
-                # Starts shutdown of prev work group
-                prev_group_id = self.thread_man.running_group
-                group_id = prev_group_id + 1
-                self.thread_man.set_running_group(group_id, wait_shutdown=False)
+                with self.mailbox.get("seek_event", block=True):
+                    self.logger.debug("Seek coordinator received a seek event")
 
-                # Wait for the writer to enter a ready state first so it can't
-                # block trying to fetch work from an empty work queue
-                # TODO: Replace with barrier (needs to be compatible with python 2.7)
-                self.logger.debug("Waiting for writer thread")
-                self.mailbox.wait_on_msg("waiting on restart", source="writer")
+                    # Starts shutdown of prev work group
+                    prev_group_id = self.thread_man.running_group
+                    group_id = prev_group_id + 1
+                    self.thread_man.set_running_group(group_id, wait_shutdown=False)
 
-                # Flush work queue and poll worker for ready state
-                queue_empty = False
-                worker_ready = False
-                self.logger.debug("Flushing work queue and polling worker thread")
-                while not worker_ready or not queue_empty:
-                    if not worker_ready:
-                        # TODO: Replace with barrier (needs to be compatible with python 2.7)
-                        worker_ready = self.mailbox.get("waiting on restart",
-                                                        source="worker")
-                        if worker_ready:
-                            self.logger.debug("Worker ready, finishing queue flush")
-                    try:
-                        work_item = self.work_queue.get(block=False)
-                        segment = work_item[0]
+                    # Wait for the writer to enter a ready state first so it can't
+                    # block trying to fetch work from an empty work queue
+                    self.logger.debug("Waiting for writer thread")
+                    self.mailbox.wait_on_msg("waiting on restart", source="writer")
+
+                    # Flush work queue and poll worker for ready state
+                    queue_empty = False
+                    worker_ready = False
+                    self.logger.debug("Flushing work queue and polling worker thread")
+                    while not worker_ready or not queue_empty:
+                        if not worker_ready:
+                            worker_ready = self.mailbox.get("waiting on restart",
+                                                            source="worker")
+                            if worker_ready:
+                                self.logger.debug("Worker ready, finishing queue flush")
                         try:
-                            self.logger.debug("Dropping segment {0}-{1}, "
-                                              "group id {id} from the work queue"
-                                              .format(*segment.byte_range,
-                                                      id=segment.group_id))
-                        except AttributeError:
-                            pass
-                        try:
-                            self.logger.debug("Dropping segment {0}, "
-                                              "group id {id} from the work queue"
-                                              .format(segment.num,
-                                                      id=segment.group_id))
-                        except AttributeError:
-                            pass
-                        queue_empty = self.work_queue.empty()
-                    except queue.Empty:
-                        queue_empty = self.work_queue.empty()
+                            work_item = self.work_queue.get(block=False)
+                            segment = work_item[0]
+                            try:
+                                self.logger.debug("Dropping segment {0}-{1}, "
+                                                  "group id {id} from the work queue"
+                                                  .format(*segment.byte_range,
+                                                          id=segment.group_id))
+                            except AttributeError:
+                                pass
+                            try:
+                                self.logger.debug("Dropping segment {0}, "
+                                                  "group id {id} from the work queue"
+                                                  .format(segment.num,
+                                                          id=segment.group_id))
+                            except AttributeError:
+                                pass
+                            queue_empty = self.work_queue.empty()
+                        except queue.Empty:
+                            queue_empty = self.work_queue.empty()
 
-                # Queue has been flush so it is safe to restart threads
-                # TODO: Replace with barrier wait (needs to be compatible with python 2.7)
-                self.logger.debug("Queue flush complete, restarting worker and writer threads")
-                self.mailbox.send("restart", target="worker")
-                self.mailbox.send("restart", target="writer")
-
-                # Notify waiting threads that the seek event has been handled
-                seek_event.set_handled()
+                    # Queue has been flush so it is safe to restart threads
+                    self.logger.debug("Queue flush complete, restarting worker and writer threads")
+                    self.mailbox.send("restart", target="worker")
+                    self.mailbox.send("restart", target="writer")
+            except MailboxClosed:
+                self.close()
 
     def close(self):
-        self.closed = True
-        # TODO: Replace with mailbox close that wakes waiting threads with an exception
-        self.mailbox.unsubscribe("seek_event")
+        if not self.closed:
+            self.closed = True
+            self.mailbox.close()
 
 
 class SegmentedStreamWorker(Thread):

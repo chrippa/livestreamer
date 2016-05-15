@@ -1,4 +1,8 @@
 from collections import defaultdict, namedtuple
+
+from concurrent import futures
+from concurrent.futures import ThreadPoolExecutor
+from ..compat import queue
 from ..buffers import RingBuffer
 from .streaming_response import StreamingResponse
 from .threadpool_manager import ThreadPoolManager
@@ -19,11 +23,9 @@ from .http import HTTPStream
 from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
                         SegmentedStreamWorker, SeekCoordinator)
-from ..exceptions import StreamError
-
+from ..exceptions import StreamError, MailboxClosed
 
 _Sequence = namedtuple("Sequence", "num segment")
-SeekMeta = namedtuple("SeekMeta", "segment_offset segment_length")
 
 
 # Add a mutable fields to the Sequence tuple so we can add seek meta data
@@ -31,8 +33,10 @@ SeekMeta = namedtuple("SeekMeta", "segment_offset segment_length")
 class Sequence(_Sequence):
     def __init__(self, *args, **kwargs):
         super(Sequence, self).__init__()
-        self.seek_meta = None
+        self.segment_offset = None
+        self.segment_length = None
         self.group_id = 0
+        self.is_last = False
 
 
 class HLSStreamWriter(SegmentedStreamWriter):
@@ -137,20 +141,41 @@ class HLSStreamWriter(SegmentedStreamWriter):
                               "buffer cancelled",
                               sequence.num, sequence.group_id)
 
-        # I retrieve a seek event...
-        # Pause until we have flushed the work queue of old segments
-        # Defer to seek coordinator
-        with self.mailbox.get("seek_event") as seek_event:
-            if seek_event:
-                # Need a new buffer once thread restarts
-                buffer_size = self.reader.buffer.buffer_size
-                self.reader.buffer.close()
-                self.reader.buffer = RingBuffer(buffer_size)
+        try:
+            # End of stream, if we should idle then do so
+            if sequence.is_last:
+                should_idle_msg = self.mailbox.get("should_idle", block=True)
+                should_idle = should_idle_msg.data
+                if should_idle:
+                    # Close the buffer so that reads don't block and stream
+                    # terminates once the last byte has been read
+                    self.reader.buffer.close()
+                    self.logger.debug("End of stream reached, waiting for seek or close")
 
-                self.mailbox.send("waiting on restart", target="seek_coordinator")
-                self.logger.debug("Writer thread paused, waiting on seek coordinator")
-                self.mailbox.wait_on_msg("restart")
-                self.logger.debug("Writer thread resumed")
+                    # Idle waiting on seek events until shutdown
+                    self.mailbox.wait_on_msg("seek_event", leave_msg=True)
+
+            # Handle seek events
+            with self.mailbox.get("seek_event") as seek_event:
+                if seek_event:
+                    # Need a new buffer once thread restarts
+                    buffer_size = self.reader.buffer.buffer_size
+                    self.reader.buffer.close()
+                    self.reader.buffer = RingBuffer(buffer_size)
+
+                    # Defer to seek coordinator
+                    self.mailbox.send("waiting on restart", target="seek_coordinator")
+                    self.logger.debug("Writer thread paused, waiting on seek coordinator")
+                    self.mailbox.wait_on_msg("restart")
+                    self.logger.debug("Writer thread resumed")
+
+        except MailboxClosed:
+            self.close()
+
+    def close(self):
+        if not self.closed:
+            super(HLSStreamWriter, self).close()
+            self.mailbox.close()
 
 
 class HLSStreamWorker(SegmentedStreamWorker):
@@ -215,7 +240,8 @@ class HLSStreamWorker(SegmentedStreamWorker):
                                  [s.num for s in sequences])
         self.playlist_reload_time = (playlist.target_duration or
                                      last_sequence.segment.duration)
-        self.playlist_sequences = sequences
+        if self.playlist_changed:
+            self.playlist_sequences = sequences
 
         if not self.playlist_changed:
             self.playlist_reload_time = max(self.playlist_reload_time / 2, 1)
@@ -223,7 +249,7 @@ class HLSStreamWorker(SegmentedStreamWorker):
         if playlist.is_endlist:
             self.playlist_end = last_sequence.num
 
-            if self.playlist_changed:
+            if self.playlist_changed and playlist.playlist_type == "VOD":
                 self.get_seek_meta(playlist, sequences)
                 if self.complete_length and self.duration:
                     self.supports_seek = True
@@ -241,8 +267,8 @@ class HLSStreamWorker(SegmentedStreamWorker):
 
     def get_seq_idx(self, seek_pos):
         for idx, sequence in enumerate(self.playlist_sequences):
-            first_byte = sequence.seek_meta.segment_offset
-            last_byte = first_byte + sequence.seek_meta.segment_length - 1
+            first_byte = sequence.segment_offset
+            last_byte = first_byte + sequence.segment_length - 1
             if first_byte <= seek_pos <= last_byte:
                 self.stream.player_range_adjust = -(seek_pos - first_byte)
                 return idx
@@ -251,69 +277,89 @@ class HLSStreamWorker(SegmentedStreamWorker):
         group_id = 0
         seq_start_pos = 0
         while not self.closed:
-            # I have retrieved a seek event
-            # Calculate appropriate segment to download and offset to stream from
-            # Update the current work group and assign new segments to it
-            # Wait for the work queue to be flushed and continue
-            with self.mailbox.get("seek_event", block=False) as seek_event:
-                if seek_event:
-                    seq_start_pos = self.get_seq_idx(seek_event.data)
-                    group_id += 1
-                    self.playlist_sequence = self.playlist_sequences[seq_start_pos].num
+            try:
+                # Handle seek events
+                with self.mailbox.get("seek_event", block=False) as seek_event:
+                    if seek_event:
+                        seq_start_pos = self.get_seq_idx(seek_event.data)
+                        group_id += 1
+                        self.playlist_sequence = self.playlist_sequences[seq_start_pos].num
 
-                    self.logger.debug("Worker received a seek event, "
-                                      "new segments start at number {0}, "
-                                      "group id {1}"
-                                      .format(self.playlist_sequence, group_id))
+                        self.logger.debug("Worker received a seek event, "
+                                          "new segments start at number {0}, "
+                                          "group id {1}"
+                                          .format(self.playlist_sequence, group_id))
 
-                    # Defer to seek coordinator
-                    self.mailbox.send("waiting on restart", target="seek_coordinator")
-                    self.logger.debug("Worker thread paused, waiting on seek coordinator")
-                    self.mailbox.wait_on_msg("restart")
-                    self.logger.debug("Worker thread resumed")
+                        # Defer to seek coordinator
+                        self.mailbox.send("waiting on restart", target="seek_coordinator")
+                        self.logger.debug("Worker thread paused, waiting on seek coordinator")
+                        self.mailbox.wait_on_msg("restart")
+                        self.logger.debug("Worker thread resumed")
 
-            skip_reload = False
-            for sequence in filter(self.valid_sequence,
-                                   self.playlist_sequences[seq_start_pos:]):
-                # I retrieve a seek event...
-                # Break out of this inner loop, leave seek event unprocessed
-                if self.mailbox.get("seek_event", block=False, leave_msg=True):
-                    skip_reload = True
-                    break
+                skip_reload = False
+                for sequence in filter(self.valid_sequence,
+                                       self.playlist_sequences[seq_start_pos:]):
+                    # Got seek event.
+                    # Break out of this inner loop, leave seek event unprocessed
+                    if self.mailbox.get("seek_event", block=False, leave_msg=True):
+                        skip_reload = True
+                        break
 
-                sequence.group_id = group_id
-                self.logger.debug("Adding segment {0} to queue, group_id {1}",
-                                  sequence.num,
-                                  sequence.group_id)
-                yield sequence
+                    sequence.group_id = group_id
+                    stream_end = self.playlist_end and sequence.num >= self.playlist_end
+                    sequence.is_last = stream_end
+                    self.logger.debug("Adding segment {0} to queue, group_id {1}",
+                                      sequence.num,
+                                      sequence.group_id)
+                    yield sequence
 
-                # End of stream
-                stream_end = self.playlist_end and sequence.num >= self.playlist_end
-                if self.closed or stream_end:
-                    return
+                    # End of stream
+                    if stream_end:
+                        if self.supports_seek:
+                            # Idle waiting for seek events or shutdown
+                            self.mailbox.send("should_idle", True, target="writer")
+                            self.mailbox.wait_on_msg("seek_event", leave_msg=True)
+                            skip_reload = True
+                        else:
+                            self.mailbox.send("should_idle", False, target="writer")
+                            return
 
-                self.playlist_sequence = sequence.num + 1
+                    self.playlist_sequence = sequence.num + 1
 
-            if not skip_reload and self.wait(self.playlist_reload_time):
-                try:
-                    self.reload_playlist()
-                except StreamError as err:
-                    self.logger.warning("Failed to reload playlist: {0}", err)
+                if not skip_reload and self.wait(self.playlist_reload_time):
+                    try:
+                        self.reload_playlist()
+                    except StreamError as err:
+                        self.logger.warning("Failed to reload playlist: {0}", err)
+
+            except MailboxClosed:
+                self.close()
 
     def get_seek_meta(self, playlist, sequences):
+        self.logger.debug("Fetching meta data for seek")
+
         duration = 0
         complete_length = 0
         content_type = None
         try:
+            # Parallelize large number of small network requests
+            executor = ThreadPoolExecutor(16)
+            meta_fetch_queue = queue.Queue()
+            for segment in playlist.segments:
+                future = executor.submit(self.session.http.head, segment.uri,
+                                         acceptable_status=[200, 206],
+                                         exception=StreamError)
+                meta_fetch_queue.put(future)
+            executor.shutdown(wait=False)
+
             seen_files = []
             segment_offset = 0
             for i, segment in enumerate(playlist.segments):
                 file = segment.uri.split("?")[0]
                 hls_byterange = segment.byterange
 
-                res = self.session.http.head(segment.uri,
-                                             acceptable_status=[200, 206],
-                                             exception=StreamError)
+                future = meta_fetch_queue.get()
+                res = future.result(timeout=10)
 
                 segment_length = int(res.headers.get("Content-Length"))
                 # Don't accumulate content length for hls byte ranges as they are
@@ -326,8 +372,8 @@ class HLSStreamWorker(SegmentedStreamWorker):
                 content_type = res.headers.get("Content-Type")
 
                 # Add meta data to sequences needed to retrieve content on seek
-                seek_meta = SeekMeta(segment_offset, segment_length)
-                sequences[i].seek_meta = seek_meta
+                sequences[i].segment_offset = segment_offset
+                sequences[i].segment_length = segment_length
 
                 segment_offset += segment_length
                 seen_files.append(file)
@@ -343,11 +389,20 @@ class HLSStreamWorker(SegmentedStreamWorker):
             self.duration = duration
             self.content_type = content_type
 
-        except (StreamError, ValueError, TypeError):
-            self.logger.debug("Unable to get complete VOD metadata for seek")
+            self.logger.debug("Fetching of seek meta data complete")
+
+        except (StreamError, futures.TimeoutError, futures.CancelledError,
+                ValueError, TypeError) as err:
+            self.logger.debug("Unable to get complete VOD metadata for seek: {0}"
+                              .format(err))
             self.complete_length = None
             self.duration = None
             self.content_type = None
+
+    def close(self):
+        if not self.closed:
+            super(HLSStreamWorker, self).close()
+            self.mailbox.close()
 
 
 class HLSStreamReader(SegmentedStreamReader):
@@ -375,10 +430,12 @@ class HLSStreamReader(SegmentedStreamReader):
             self.seek_coordinator.start()
 
     def close(self):
-        if self.supports_seek:
+        try:
             self.seek_coordinator.close()
             if self.seek_coordinator.is_alive():
                 self.seek_coordinator.join()
+        except AttributeError:
+            pass
         SegmentedStreamReader.close(self)
 
 

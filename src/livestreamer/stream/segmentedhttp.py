@@ -1,13 +1,12 @@
 from collections import namedtuple
 
-from livestreamer.message_broker import HandleableMsg
 from ..buffers import RingBuffer
 from .threadpool_manager import ThreadPoolManager
 from .http import HTTPStream
 from .segmented import (SegmentedStreamReader,
                         SegmentedStreamWriter,
                         SegmentedStreamWorker, SeekCoordinator)
-from ..exceptions import StreamError, MailboxTimeout
+from ..exceptions import StreamError, MailboxClosed
 from .streaming_response import StreamingResponse
 
 ByteRange = namedtuple("ByteRange", "first_byte last_byte")
@@ -26,57 +25,49 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
     def iter_segments(self):
         pos = group_id = 0
         while not self.closed and not self.writer.closed:
-            # Handle seek events
-            with self.mailbox.get("seek_event") as seek_event:
-                if seek_event:
-                    # Update work group
-                    pos = seek_event.data
-                    group_id += 1
-                    self.logger.debug("Worker received a seek event, "
-                                      "new segments start at pos {0}, group id {1}"
-                                      .format(pos, group_id))
+            try:
+                # Handle seek events
+                with self.mailbox.get("seek_event") as seek_event:
+                    if seek_event:
+                        # Update work group
+                        pos = seek_event.data
+                        group_id += 1
+                        self.logger.debug("Worker received a seek event, "
+                                          "new segments start at pos {0}, group id {1}"
+                                          .format(pos, group_id))
 
-                    # Starts shutdown of prev work group
-                    self.writer.executor.set_running_group(group_id, wait_shutdown=False)
+                        # Defer to seek coordinator
+                        self.mailbox.send("waiting on restart", target="seek_coordinator")
+                        self.logger.debug("Worker thread paused, waiting on seek coordinator")
+                        self.mailbox.wait_on_msg("restart")
+                        self.logger.debug("Worker thread resumed")
 
-                    # Defer to seek coordinator
-                    self.mailbox.send("waiting on restart", target="seek_coordinator")
-                    self.logger.debug("Worker thread paused, waiting on seek coordinator")
-                    self.mailbox.wait_on_msg("restart")
-                    self.logger.debug("Worker thread resumed")
+                segment = Segment(self.stream.url,
+                                  ByteRange(pos, pos + self.segment_size - 1),
+                                  group_id)
 
-            segment = Segment(self.stream.url,
-                              ByteRange(pos, pos + self.segment_size - 1),
-                              group_id)
+                self.logger.debug("Adding segment {0}-{1}, group id {id} to queue",
+                                  *segment.byte_range,
+                                  id=segment.group_id)
 
-            self.logger.debug("Adding segment {0}-{1}, group id {id} to queue",
-                              *segment.byte_range,
-                              id=segment.group_id)
+                yield segment
+                pos += self.segment_size
 
-            yield segment
-            pos += self.segment_size
+                # End of stream
+                stream_end = pos >= self.complete_length
+                if stream_end:
+                    # Idle waiting on seek events until shutdown
+                    self.mailbox.wait_on_msg("seek_event", leave_msg=True)
 
-            # End of stream
-            stream_end = pos >= self.complete_length
-            if stream_end:
-                # Idle waiting on seek events until shutdown
-                # TODO: Replace poll with mailbox close event that wakes thread with an exception
-                idle = True
-                while idle and not self.closed and not self.writer.closed:
-                    try:
-                        self.mailbox.wait_on_msg("seek_event", leave_msg=True,
-                                                 timeout=1)
-                        idle = False
-                    except MailboxTimeout:
-                        continue
+            except MailboxClosed:
+                break
 
         self.close()
 
     def close(self):
         if not self.closed:
             SegmentedStreamWorker.close(self)
-            # TODO: Replace with mailbox close that wakes waiting threads with an exception
-            self.mailbox.unsubscribe("seek_event")
+            self.mailbox.close()
 
 
 class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
@@ -131,25 +122,18 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                                   id=segment.group_id)
 
             # End of stream
-            seek_event = HandleableMsg(None)
             last_byte = segment.byte_range.last_byte
             if last_byte >= (self.complete_length - 1):
+                # Close the buffer so that reads don't block and stream
+                # terminates once the last byte has been read
                 self.reader.buffer.close()
-                self.logger.info("End of stream reached")
+                self.logger.debug("End of stream reached, waiting for seek or close")
 
                 # Idle waiting on seek events until shutdown
-                # TODO: Replace poll with mailbox close event that wakes thread with an exception
-                idle = True
-                while idle and not self.closed:
-                    try:
-                        seek_event = self.mailbox.get("seek_event", block=True,
-                                                      timeout=1)
-                        idle = False
-                    except MailboxTimeout:
-                        continue
+                self.mailbox.wait_on_msg("seek_event", leave_msg=True)
 
-            # Wait for seek coordinator to restart this thread
-            with seek_event or self.mailbox.get("seek_event") as seek_event:
+            # If got seek: wait for seek coordinator to restart this thread
+            with self.mailbox.get("seek_event") as seek_event:
                 if seek_event:
                     # Need a new buffer once thread restarts
                     buffer_size = self.reader.buffer.buffer_size
@@ -162,6 +146,9 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
                     self.mailbox.wait_on_msg("restart")
                     self.logger.debug("Writer thread resumed")
 
+        except MailboxClosed:
+            self.close()
+
         except StreamError as err:
             self.logger.error("Unable to recover stream: {0}",
                               err)
@@ -170,8 +157,7 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
     def close(self):
         if not self.closed:
             SegmentedStreamWriter.close(self)
-            # TODO: Replace with mailbox close that wakes waiting threads with an exception
-            self.mailbox.unsubscribe("seek_event")
+            self.mailbox.close()
 
 
 class SegmentedHTTPStreamReader(SegmentedStreamReader):
@@ -198,10 +184,12 @@ class SegmentedHTTPStreamReader(SegmentedStreamReader):
             self.seek_coordinator.start()
 
     def close(self):
-        if self.stream.supports_seek:
+        try:
             self.seek_coordinator.close()
             if self.seek_coordinator.is_alive():
                 self.seek_coordinator.join()
+        except AttributeError:
+            pass
         SegmentedStreamReader.close(self)
 
 
