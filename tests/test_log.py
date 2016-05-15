@@ -1,5 +1,7 @@
 import unittest
 
+from datetime import datetime
+
 from livestreamer.logger import Logger
 from livestreamer.compat import is_py2
 
@@ -28,7 +30,16 @@ class TestSession(unittest.TestCase):
     def test_output(self):
         self.manager.set_level("debug")
         self.logger.debug("test")
-        self.assertEqual(self.output.getvalue(), "[test][debug] test\n")
+        output = self.output.getvalue()
+        timestamp_end_idx = output.find("]") + 1
+        timestamp_part = output[:timestamp_end_idx][1:-1]  # Strip brackets
+        log_msg_part = output[timestamp_end_idx:]
+        try:
+            time_format = "%Y-%m-%d %H:%M:%S.%f"
+            datetime.strptime(timestamp_part, time_format)
+        except ValueError:
+            self.fail("Timestamp does not match {0}".format(time_format))
+        self.assertEqual(log_msg_part, "[test][debug] test\n")
 
 if __name__ == "__main__":
     unittest.main()
