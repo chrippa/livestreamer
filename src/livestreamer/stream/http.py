@@ -5,7 +5,7 @@ import requests
 
 from .stream import Stream
 from .wrappers import StreamIOThreadWrapper, StreamIOIterWrapper
-from ..exceptions import StreamError, MailboxTimeout
+from ..exceptions import StreamError, MailboxClosed
 
 
 def normalize_key(keyval):
@@ -37,10 +37,10 @@ class SeekCoordinator(Thread):
     def run(self):
         while not self.closed and not self.stream.fd.closed:
             try:
-                seek_event = self.mailbox.get("seek_event", block=True, timeout=1)
-            except MailboxTimeout:
-                # TODO: Replace poll with mailbox close event that wakes thread with an exception
-                continue  # Used to poll for close event
+                seek_event = self.mailbox.get("seek_event", block=True)
+            except MailboxClosed:
+                self.close()
+                break
             else:
                 first_byte = seek_event.data
                 HTTPStream.add_range_hdr(first_byte, "",
@@ -72,8 +72,7 @@ class SeekCoordinator(Thread):
     def close(self):
         if not self.closed:
             self.closed = True
-            # TODO: Replace with mailbox close that wakes waiting threads with an exception
-            self.mailbox.unsubscribe("seek_event")
+            self.mailbox.close()
 
 
 class HTTPStream(Stream):

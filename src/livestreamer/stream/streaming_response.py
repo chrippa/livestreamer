@@ -27,7 +27,6 @@ class StreamingResponse:
         self.buffered_data = 0
         self.consumed_data = 0
         self.segment_size = None  # Initially unknown
-        # TODO: Implement segment buffer pooling
         self.segment_buffer = RingBuffer()
         self.group_id = group_id
         self.filename = uri.split("/")[-1].split("?")[0]

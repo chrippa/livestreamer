@@ -255,7 +255,6 @@ class HTTPServer(object):
             date_str = formatdate(timeval=None, localtime=False, usegmt=True)
             self.conn.send(b"Server: Livestreamer\r\n")
             self.conn.send(b"Date: " + date_str.encode())
-            # TODO: Get content type
             self.conn.send(b"Content-Type: video/unknown\r\n")
             self.conn.send(b"\r\n")
         except socket.error:
