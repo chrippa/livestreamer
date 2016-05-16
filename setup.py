@@ -27,6 +27,10 @@ if version_info[0] == 2:
     if version_info[1] == 6:
         deps.append("argparse")
 
+    # Require backport of Counter on Python 2.6
+    if version_info[1] == 6:
+        deps.append("Counter")
+
 # Require singledispatch on Python <3.4
 if version_info[0] == 2 or (version_info[0] == 3 and version_info[1] < 4):
     deps.append("singledispatch")
