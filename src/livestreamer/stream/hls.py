@@ -249,7 +249,9 @@ class HLSStreamWorker(SegmentedStreamWorker):
         if playlist.is_endlist:
             self.playlist_end = last_sequence.num
 
-            if self.playlist_changed and playlist.playlist_type == "VOD":
+            playlist_type = playlist.playlist_type
+            if self.playlist_changed and (playlist_type == "VOD" or
+                                          playlist_type == "EVENT"):
                 self.get_seek_meta(playlist, sequences)
                 if self.complete_length and self.duration:
                     self.supports_seek = True
