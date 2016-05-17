@@ -17,7 +17,7 @@ class SegmentedHTTPStreamWorker(SegmentedStreamWorker):
     def __init__(self, reader):
         SegmentedStreamWorker.__init__(self, reader)
         self.segment_size = reader.segment_size
-        self.complete_length = self.stream.get_complete_length()
+        self.complete_length = self.stream.complete_length
         self.msg_broker = self.stream.msg_broker
         self.mailbox = self.msg_broker.register("worker")
         self.mailbox.subscribe("seek_event")
@@ -77,7 +77,7 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
         self.msg_broker = self.stream.msg_broker
         self.mailbox = self.msg_broker.register("writer")
         self.mailbox.subscribe("seek_event")
-        self.complete_length = self.stream.get_complete_length()
+        self.complete_length = self.stream.complete_length
 
         threads = kwargs.setdefault("threads", None)
         if not threads:
@@ -206,22 +206,17 @@ class SegmentedHTTPStream(HTTPStream):
 
     __shortname__ = "http"
 
-    def __init__(self, session_, url, **args):
-        HTTPStream.__init__(self, session_, url, **args)
+    def __init__(self, session_, url, **kwargs):
+        HTTPStream.__init__(self, session_, url, **kwargs)
         self.logger = self.session.logger.new_module("stream.seg_http")
-
-    # Make sure we always use the correct HTTP stream type
-    def __new__(cls, session, *args, **kwargs):
-        if session.options.get("stream-segment-threads") == 1:
-            return HTTPStream(session, *args, **kwargs)
-        else:
-            return HTTPStream.__new__(cls, session, *args, **kwargs)
 
     def __repr__(self):
         return "<SegmentedHTTPStream({0!r})>".format(self.url)
 
     def open(self):
-        self.complete_length = self.get_complete_length()
+        if self.complete_length is None:
+            self.complete_length = HTTPStream.get_complete_length(self.session,
+                                                                  self.url)
         if self.complete_length:
             self.supports_seek = True
 

@@ -4,7 +4,7 @@ from random import random
 
 from livestreamer.plugin import Plugin, PluginError
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HTTPStream, RTMPStream
+from livestreamer.stream import HTTPSelect, RTMPStream
 
 API_CLIENT_NAME = "Bambuser AS2"
 API_CONTEXT = "b_broadcastpage"
@@ -53,7 +53,7 @@ class Bambuser(Plugin):
 
         url = result["url"]
         if url.startswith("http"):
-            stream = HTTPStream(self.session, url)
+            stream = HTTPSelect(self.session, url)
         elif url.startswith("rtmp"):
             stream = RTMPStream(self.session, {
                 "rtmp": url,

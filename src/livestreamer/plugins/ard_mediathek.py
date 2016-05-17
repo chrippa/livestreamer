@@ -2,7 +2,7 @@ import re
 
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HTTPStream, HDSStream, RTMPStream
+from livestreamer.stream import HTTPSelect, HDSStream, RTMPStream
 
 MEDIA_URL = "http://www.ardmediathek.de/play/media/{0}"
 SWF_URL = "http://www.ardmediathek.de/ard/static/player/base/flash/PluginFlash.swf"
@@ -53,7 +53,7 @@ class ard_mediathek(Plugin):
             urls = [urls]
 
         for url in urls:
-            stream = HTTPStream(self.session, url)
+            stream = HTTPSelect(self.session, url)
             yield name, stream
 
     def _get_hds_streams(self, info):

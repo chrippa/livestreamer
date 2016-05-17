@@ -4,7 +4,7 @@ from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.plugin.api.utils import parse_json, parse_query
-from livestreamer.stream import RTMPStream, HTTPStream
+from livestreamer.stream import RTMPStream, HTTPSelect
 
 SWF_LIVE_URL = "https://www.filmon.com/tv/modules/FilmOnTV/files/flashapp/filmon/FilmonPlayer.swf"
 SWF_VIDEO_URL = "http://www.filmon.us/application/themes/base/flash/MediaPlayer.swf"
@@ -122,10 +122,10 @@ class Filmon_us(Plugin):
             return dict(video=stream)
         elif res["standby_video"]:
             for stream in res["standby_video"]:
-                stream = HTTPStream(self.session, stream["streamName"])
+                stream = HTTPSelect(self.session, stream["streamName"])
                 return dict(replay=stream)
         elif res["history_video"]:
-            stream = HTTPStream(self.session, res["history_video"])
+            stream = HTTPSelect(self.session, res["history_video"])
             return dict(history=stream)
 
         return

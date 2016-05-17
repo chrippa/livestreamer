@@ -3,7 +3,7 @@ import re
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import FLVPlaylist, HTTPStream
+from livestreamer.stream import FLVPlaylist, HTTPSelect
 
 API_URL = "http://veetle.com/index.php/stream/ajaxStreamLocation/{0}/flash"
 
@@ -53,7 +53,7 @@ class Veetle(Plugin):
         else:
             name = "vod"
 
-        stream = HTTPStream(self.session, info["payload"])
+        stream = HTTPSelect(self.session, info["payload"])
         # Wrap the stream in a FLVPlaylist to verify the FLV tags
         stream = FLVPlaylist(self.session, [stream])
 

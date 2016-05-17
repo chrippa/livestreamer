@@ -11,7 +11,7 @@ import json
 from livestreamer.compat import quote
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http
-from livestreamer.stream import HTTPStream, HLSStream
+from livestreamer.stream import HTTPSelect, HLSStream
 
 _url_re = re.compile("http(s)?://(\w+\.)?npo.nl/")
 HTTP_HEADERS = {
@@ -67,7 +67,7 @@ class NPO(Plugin):
 
         streams = {}
         stream = http.get(data['streams'][0].replace('jsonp', 'json'), headers=HTTP_HEADERS).json()
-        streams['best'] = streams['high'] = HTTPStream(self.session, stream['url'])
+        streams['best'] = streams['high'] = HTTPSelect(self.session, stream['url'])
         return streams
 
     def _get_live_streams(self):

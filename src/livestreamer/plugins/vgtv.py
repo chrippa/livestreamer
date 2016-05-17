@@ -4,7 +4,7 @@ import re
 
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HDSStream, HLSStream, HTTPStream
+from livestreamer.stream import HDSStream, HLSStream, HTTPSelect
 
 # This will have to be set to handle "secure" HDS streams. For now we
 # leave it empty, as the same streams can likely be watched with HLS.
@@ -152,7 +152,7 @@ class VGTV(Plugin):
                 p = stream["paths"][0]
                 url = "{0}/{1}".format(self._build_url(**p), p["filename"])
                 stream_name = "http_{0}k".format(stream["bitrate"])
-                streams[stream_name] = HTTPStream(self.session, url)
+                streams[stream_name] = HTTPSelect(self.session, url)
 
         return streams
 

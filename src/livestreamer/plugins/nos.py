@@ -12,7 +12,7 @@ import json
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http
 from livestreamer.plugin.api.utils import parse_json
-from livestreamer.stream import HTTPStream, HLSStream
+from livestreamer.stream import HTTPSelect, HLSStream
 
 _url_re = re.compile("http(s)?://(\w+\.)?nos.nl/")
 _js_re = re.compile('\((.*)\)')
@@ -61,7 +61,7 @@ class NOS(Plugin):
             src = _source_src_re.search(source).group("src")
             pixels = _source_type_re.search(source).group("type")
 
-            streams[pixels] = HTTPStream(self.session, src)
+            streams[pixels] = HTTPSelect(self.session, src)
 
         return streams
 

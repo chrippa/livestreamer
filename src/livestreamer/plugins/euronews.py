@@ -5,7 +5,7 @@ from itertools import chain
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http
-from livestreamer.stream import HLSStream, HTTPStream
+from livestreamer.stream import HLSStream, HTTPSelect
 
 from livestreamer.plugin.api.support_plugin import common_jwplayer as jwplayer
 
@@ -28,7 +28,7 @@ class Euronews(Plugin):
                 yield stream
         else:
             name = source.get("label", "vod")
-            yield name, HTTPStream(self.session, url)
+            yield name, HTTPSelect(self.session, url)
 
     def _get_streams(self):
         res = http.get(self.url)

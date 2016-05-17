@@ -23,7 +23,7 @@ import re
 
 from livestreamer.plugin import Plugin, PluginError
 from livestreamer.plugin.api import http
-from livestreamer.stream import HTTPStream, HLSStream
+from livestreamer.stream import HTTPSelect, HLSStream
 
 API_URL_MEDIA           = "https://api.media.ccc.de"
 API_URL_STREAMING_MEDIA = "https://streaming.media.ccc.de/streams/v1.json"
@@ -177,7 +177,7 @@ class media_ccc_de(Plugin):
                     streams[stream_name] = HLSStream(self.session,\
                                                         stream_url)
                 else:
-                    streams[stream_name] = HTTPStream(self.session,\
+                    streams[stream_name] = HTTPSelect(self.session,\
                                                         stream_url)
 
         # media.ccc.de
@@ -187,7 +187,7 @@ class media_ccc_de(Plugin):
             recordings = parse_media_json(get_json(query_url))
 
             for name, stream_url in recordings.items():
-                streams[name] = HTTPStream(self.session, stream_url)
+                streams[name] = HTTPSelect(self.session, stream_url)
 
         if not streams:
             raise PluginError("This plugin does not support your "

@@ -9,7 +9,7 @@ from livestreamer.compat import urlparse, urljoin, range
 from livestreamer.exceptions import StreamError, PluginError, NoStreamsError
 from livestreamer.plugin import Plugin, PluginOptions
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import RTMPStream, HLSStream, HTTPStream, Stream
+from livestreamer.stream import RTMPStream, HLSStream, HTTPSelect, Stream
 from livestreamer.stream.flvconcat import FLVTagConcat
 from livestreamer.stream.segmented import (
     SegmentedStreamReader, SegmentedStreamWriter, SegmentedStreamWorker
@@ -594,7 +594,7 @@ class UStreamTV(Plugin):
                         url = base_url + url
 
                     if url.startswith("http"):
-                        yield stream_name, HTTPStream(self.session, url)
+                        yield stream_name, HTTPSelect(self.session, url)
                     elif url.startswith("rtmp"):
                         params = dict(rtmp=url, pageUrl=self.url)
                         yield stream_name, RTMPStream(self.session, params)
@@ -609,7 +609,7 @@ class UStreamTV(Plugin):
             random_hash = "{0:02x}{1:02x}".format(randint(0, 255),
                                                   randint(0, 255))
             params = dict(hash=random_hash)
-            stream = HTTPStream(self.session, url, params=params)
+            stream = HTTPSelect(self.session, url, params=params)
             yield "recorded", stream
 
     def _get_streams(self):

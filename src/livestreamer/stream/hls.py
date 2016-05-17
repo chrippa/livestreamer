@@ -457,8 +457,8 @@ class HLSStream(HTTPStream):
 
     __shortname__ = "hls"
 
-    def __init__(self, session_, url, **args):
-        HTTPStream.__init__(self, session_, url, **args)
+    def __init__(self, session_, url, **kwargs):
+        HTTPStream.__init__(self, session_, url, **kwargs)
 
     def __repr__(self):
         return "<HLSStream({0!r})>".format(self.url)
@@ -471,9 +471,6 @@ class HLSStream(HTTPStream):
         del json["body"]
 
         return json
-
-    def get_complete_length(self):
-        return self.complete_length
 
     def open(self):
         reader = HLSStreamReader(self)

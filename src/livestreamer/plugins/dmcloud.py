@@ -3,7 +3,7 @@ import re
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import RTMPStream, HTTPStream, HLSStream
+from livestreamer.stream import RTMPStream, HTTPSelect, HLSStream
 from livestreamer.utils import parse_json, rtmpparse, swfdecompress
 
 _url_re = re.compile("http(s)?://api.dmcloud.net/player/embed/[^/]+/[^/]+")
@@ -56,7 +56,7 @@ class DMCloud(Plugin):
         swf_url = info.get("swf_url")
 
         if mp4_url:
-            stream = HTTPStream(self.session, mp4_url)
+            stream = HTTPSelect(self.session, mp4_url)
             yield stream_name, stream
 
         if ios_url:

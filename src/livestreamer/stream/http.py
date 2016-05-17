@@ -88,22 +88,13 @@ class HTTPStream(Stream):
 
     __shortname__ = "http"
 
-    # Make sure we always use the correct HTTP stream type
-    def __new__(cls, session, *args, **kwargs):
-        if (cls is HTTPStream and
-                session.options.get("stream-segment-threads") > 1):
-            from .segmentedhttp import SegmentedHTTPStream
-            return Stream.__new__(SegmentedHTTPStream)
-        else:
-            return Stream.__new__(cls)
-
-    def __init__(self, session_, url, buffered=True, **args):
+    def __init__(self, session_, url, buffered=True, **kwargs):
         Stream.__init__(self, session_)
         self.logger = self.session.logger.new_module("stream.http")
 
-        self.args = dict(url=url, **args)
+        self.complete_length = kwargs.pop("complete_length", None)
+        self.args = dict(url=url, **kwargs)
         self.buffered = buffered
-        self.complete_length = None
         self.mailbox = self.msg_broker.register("http")
         self.fd = None
         self.res = None
@@ -142,7 +133,8 @@ class HTTPStream(Stream):
 
         return request_params
 
-    def get_complete_length(self):
+    @staticmethod
+    def get_complete_length(session, url):
         """
         Gets the total content length of all media segments. This method
         will communicate with the stream server to try to work out the content
@@ -153,23 +145,25 @@ class HTTPStream(Stream):
                   The total content length of all media segments
                   for known content length.
         """
-        if not self.complete_length:
-            self.logger.debug("Retrieving complete content length")
-            res = self.session.http.head(self.url,
-                                         acceptable_status=[200, 206],
-                                         exception=StreamError)
-            try:
-                self.complete_length = int(res.headers.get("Content-Length"))
-                self.logger.debug("Complete content length of {0} bytes retrieved",
-                                  self.complete_length)
-            except (ValueError, TypeError):
-                self.complete_length = None
-                self.logger.debug("Unable to get content length")
+        logger = session.logger.new_module("stream.http")
+        logger.debug("Retrieving complete content length")
+        res = session.http.head(url,
+                                acceptable_status=[200, 206],
+                                exception=StreamError)
+        try:
+            complete_length = int(res.headers.get("Content-Length"))
+            logger.debug("Complete content length of {0} bytes retrieved",
+                         complete_length)
+        except (ValueError, TypeError):
+            complete_length = None
+            logger.debug("Unable to get content length")
 
-        return self.complete_length
+        return complete_length
 
     def open(self):
-        self.complete_length = self.get_complete_length()
+        if self.complete_length is None:
+            self.complete_length = HTTPStream.get_complete_length(self.session,
+                                                                  self.url)
 
         timeout = self.session.options.get("http-timeout")
         self.res = self.send_request(self.session, self.args, stream=True)

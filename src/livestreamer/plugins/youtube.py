@@ -3,7 +3,7 @@ import re
 from livestreamer.plugin import Plugin, PluginError
 from livestreamer.plugin.api import http, validate
 from livestreamer.plugin.api.utils import parse_query
-from livestreamer.stream import HTTPStream, HLSStream
+from livestreamer.stream import HTTPSelect, HLSStream
 
 API_KEY = "AIzaSyBDBi-4roGzWJN4du9TuDMLd_jVTcVkKz4"
 API_BASE = "https://www.googleapis.com/youtube/v3"
@@ -176,7 +176,7 @@ class YouTube(Plugin):
                 protected = True
                 continue
 
-            stream = HTTPStream(self.session, stream_info["url"])
+            stream = HTTPSelect(self.session, stream_info["url"])
             name = formats.get(stream_info["itag"]) or stream_info["quality"]
 
             if stream_info.get("stereo3d"):
@@ -194,7 +194,7 @@ class YouTube(Plugin):
             if stream_type != "audio":
                 continue
 
-            stream = HTTPStream(self.session, stream_info["url"])
+            stream = HTTPSelect(self.session, stream_info["url"])
             name = "audio_{0}".format(stream_format)
 
             streams[name] = stream

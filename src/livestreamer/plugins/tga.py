@@ -5,7 +5,7 @@ import re
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.plugin.api.utils import parse_query
-from livestreamer.stream import HLSStream, HTTPStream
+from livestreamer.stream import HLSStream, HTTPSelect
 
 CHANNEL_INFO_URL = "http://api.plu.cn/tga/streams/%s"
 STREAM_INFO_URL = "http://info.zb.qq.com/?cnlid=%d&cmd=2&stream=%d&system=1&sdtfrom=113"
@@ -74,7 +74,7 @@ class Tga(Plugin):
         if cnid == False:
             return;
 
-        flash_stream = HTTPStream(self.session, self._get_qq_stream_url(cnid, 1))
+        flash_stream = HTTPSelect(self.session, self._get_qq_stream_url(cnid, 1))
         if flash_stream:
             yield "live", flash_stream
 
