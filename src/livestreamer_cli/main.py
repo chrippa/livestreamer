@@ -232,14 +232,7 @@ def output_stream_http(plugin, initial_streams, external=False, port=0, continuo
         # Shutdown stream
         if stream_fd:
             console.logger.info("Stream ended")
-        try:
-            stream.close()
-        except AttributeError:
-            pass
-        try:
             stream_fd.close()
-        except AttributeError:
-            pass
 
         # If continuous then loop back to the top
         if continuous:
@@ -325,8 +318,12 @@ def output_stream(stream):
                          args.output, err)
 
     with closing(output):
-        console.logger.debug("Writing stream to output")
-        read_stream(stream_fd, output, prebuffer)
+        with closing(stream_fd):
+            console.logger.debug("Writing stream to output")
+            read_stream(stream_fd, output, prebuffer)
+
+    # Shutdown stream
+    console.logger.info("Stream ended")
 
     return True
 
