@@ -147,14 +147,16 @@ class HTTPStream(Stream):
         """
         logger = session.logger.new_module("stream.http")
         logger.debug("Retrieving complete content length")
-        res = session.http.head(url,
-                                acceptable_status=[200, 206],
-                                exception=StreamError)
+
         try:
+            res = session.http.head(url,
+                                    acceptable_status=[200, 206],
+                                    exception=StreamError)
+
             complete_length = int(res.headers.get("Content-Length"))
             logger.debug("Complete content length of {0} bytes retrieved",
                          complete_length)
-        except (ValueError, TypeError):
+        except (StreamError, ValueError, TypeError):
             complete_length = None
             logger.debug("Unable to get content length")
 
