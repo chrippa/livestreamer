@@ -135,11 +135,6 @@ class SegmentedHTTPStreamWriter(SegmentedStreamWriter):
             # If got seek: wait for seek coordinator to restart this thread
             with self.mailbox.get("seek_event") as seek_event:
                 if seek_event:
-                    # Need a new buffer once thread restarts
-                    buffer_size = self.reader.buffer.buffer_size
-                    self.reader.buffer.close()
-                    self.reader.buffer = RingBuffer(buffer_size)
-
                     # Defer to seek coordinator
                     self.mailbox.send("waiting on restart", target="seek_coordinator")
                     self.logger.debug("Writer thread paused, waiting on seek coordinator")

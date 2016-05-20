@@ -12,6 +12,7 @@ class SeekCoordinator(Thread):
     def __init__(self, reader):
         self.thread_man = reader.writer.executor
         self.work_queue = reader.writer.futures
+        self.video_buffer = reader.buffer
         self.logger = reader.session.logger.new_module("stream.seek_coord")
         self.mailbox = reader.stream.msg_broker.register("seek_coordinator")
         self.mailbox.subscribe("seek_event")
@@ -31,10 +32,18 @@ class SeekCoordinator(Thread):
                     group_id = prev_group_id + 1
                     self.thread_man.set_running_group(group_id, wait_shutdown=False)
 
+                    # Close the video buffer so the writer can't block trying to
+                    # write to it
+                    self.video_buffer.close()
+
                     # Wait for the writer to enter a ready state first so it can't
                     # block trying to fetch work from an empty work queue
                     self.logger.debug("Waiting for writer thread")
                     self.mailbox.wait_on_msg("waiting on restart", source="writer")
+
+                    # Reader and writer are paused, it is now safe to re-initialise
+                    # the video buffer
+                    self.video_buffer.__init__(self.video_buffer.buffer_size)
 
                     # Flush work queue and poll worker for ready state
                     queue_empty = False
