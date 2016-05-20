@@ -322,7 +322,7 @@ class UHSStreamWorker(SegmentedStreamWorker):
 
         chunk_id = int(result["chunkId"])
         chunk_offset = int(result["offset"])
-        chunk_range = dict(map(partial(map, int), chunk_range.items()))
+        chunk_range = {int(k): str(v) for k, v in chunk_range.items()}
 
         self.chunk_ranges.update(chunk_range)
         self.chunk_id_min = sorted(chunk_range)[0]
@@ -510,8 +510,11 @@ class UStreamTV(Plugin):
         for provider in channel["stream"]:
             if provider["name"] == u"uhs_akamai":  # not heavily tested, but got a stream working
                 continue
-            provider_url = provider["url"]
-            provider_name = provider["name"]
+            try:
+                provider_url = provider["url"]
+                provider_name = provider["name"]
+            except KeyError:
+                continue
             for stream_index, stream_info in enumerate(provider["streams"]):
                 stream = None
                 stream_height = int(stream_info.get("height", 0))
