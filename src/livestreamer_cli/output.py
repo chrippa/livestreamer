@@ -66,7 +66,7 @@ class FileOutput(Output):
 class PlayerOutput(Output):
     def __init__(self, cmd, args=DEFAULT_PLAYER_ARGUMENTS,
                  filename=None, quiet=True, kill=True,
-                 call=False, http=False, namedpipe=None):
+                 call=False, namedpipe=None):
         self.cmd = cmd
         self.args = args
         self.kill = kill
@@ -75,9 +75,8 @@ class PlayerOutput(Output):
 
         self.filename = filename
         self.namedpipe = namedpipe
-        self.http = http
 
-        if self.namedpipe or self.filename or self.http:
+        if self.namedpipe or self.filename:
             self.stdin = sys.stdin
         else:
             self.stdin = subprocess.PIPE
@@ -91,7 +90,7 @@ class PlayerOutput(Output):
 
     @property
     def running(self):
-        sleep(0.5)
+        sleep(0.1)
         self.player.poll()
         return self.player.returncode is None
 
@@ -100,8 +99,6 @@ class PlayerOutput(Output):
             filename = self.namedpipe.path
         elif self.filename:
             filename = self.filename
-        elif self.http:
-            filename = self.http.url
         else:
             filename = "-"
 
@@ -146,16 +143,12 @@ class PlayerOutput(Output):
 
         if self.namedpipe:
             self.namedpipe.open("wb")
-        elif self.http:
-            self.http.open()
 
     def _close(self):
-        # Close input to the player first to signal the end of the
+        # Close input to the player first to handled_sig the end of the
         # stream and allow the player to terminate of its own accord
         if self.namedpipe:
             self.namedpipe.close()
-        elif self.http:
-            self.http.close()
         elif not self.filename:
             self.player.stdin.close()
 
@@ -167,8 +160,6 @@ class PlayerOutput(Output):
     def _write(self, data):
         if self.namedpipe:
             self.namedpipe.write(data)
-        elif self.http:
-            self.http.write(data)
         else:
             self.player.stdin.write(data)
 

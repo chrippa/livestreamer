@@ -5,7 +5,7 @@ from itertools import chain
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import StreamMapper, http, validate
-from livestreamer.stream import HLSStream, HTTPStream, RTMPStream
+from livestreamer.stream import HLSStream, HTTPSelect, RTMPStream
 from livestreamer.utils import absolute_url
 
 HLS_PLAYLIST_BASE = "http://www.hitbox.tv{0}"
@@ -161,8 +161,8 @@ class Hitbox(Plugin):
             cmp=lambda ext, bitrate: urlparse(bitrate["url"]).path.endswith(ext)
         )
         mapper.map(".m3u8", self._create_video_stream, HLSStream, base_url)
-        mapper.map(".mp4", self._create_video_stream, HTTPStream, base_url)
-        mapper.map(".flv", self._create_video_stream, HTTPStream, base_url)
+        mapper.map(".mp4", self._create_video_stream, HTTPSelect, base_url)
+        mapper.map(".flv", self._create_video_stream, HTTPSelect, base_url)
 
         return mapper(player["clip"]["bitrates"])
 

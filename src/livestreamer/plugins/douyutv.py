@@ -5,7 +5,7 @@ import time
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import (
-    HTTPStream, HLSStream
+    HTTPSelect, HLSStream
 )
 
 API_URL = "http://www.douyutv.com/api/v1/room/{0}?aid=android&client_sys=android&time={1}&auth={2}"
@@ -75,12 +75,12 @@ class Douyutv(Plugin):
         yield "hls", hls_stream
 
         url = "{room[rtmp_url]}/{room[rtmp_live]}".format(room=room)
-        stream = HTTPStream(self.session, url)
+        stream = HTTPSelect(self.session, url)
         yield "source", stream
 
         for name, url in room["rtmp_multi_bitrate"].items():
             url = "{room[rtmp_url]}/{url}".format(room=room, url=url)
-            stream = HTTPStream(self.session, url)
+            stream = HTTPSelect(self.session, url)
             yield name, stream
 
 __plugin__ = Douyutv

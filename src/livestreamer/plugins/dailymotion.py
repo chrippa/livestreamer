@@ -5,7 +5,7 @@ from functools import reduce
 from livestreamer.compat import urlparse, range
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HDSStream, HLSStream, HTTPStream, RTMPStream
+from livestreamer.stream import HDSStream, HLSStream, HTTPSelect, RTMPStream
 from livestreamer.stream.playlist import FLVPlaylist
 
 COOKIES = {
@@ -151,7 +151,7 @@ class DailyMotion(Plugin):
         )
         segment_max = reduce(lambda i,j: i + j[0], playlist["fragments"], 0)
 
-        substreams = [HTTPStream(self.session,
+        substreams = [HTTPSelect(self.session,
                                  url_template.replace("$fragment$", str(i)))
                       for i in range(1, segment_max + 1)]
 

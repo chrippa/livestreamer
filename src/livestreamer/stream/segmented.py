@@ -1,9 +1,92 @@
 from concurrent import futures
 from threading import Thread, Event
 
+from ..exceptions import MailboxClosed
+from .threadpool_manager import ThreadPoolManager
 from .stream import StreamIO
 from ..buffers import RingBuffer
 from ..compat import queue
+
+
+class SeekCoordinator(Thread):
+    def __init__(self, reader):
+        self.thread_man = reader.writer.executor
+        self.work_queue = reader.writer.futures
+        self.video_buffer = reader.buffer
+        self.logger = reader.session.logger.new_module("stream.seek_coord")
+        self.mailbox = reader.stream.msg_broker.register("seek_coordinator")
+        self.mailbox.subscribe("seek_event")
+        self.closed = False
+
+        Thread.__init__(self)
+        self.daemon = True
+
+    def run(self):
+        while not self.closed:
+            try:
+                with self.mailbox.get("seek_event", block=True):
+                    self.logger.debug("Seek coordinator received a seek event")
+
+                    # Starts shutdown of prev work group
+                    prev_group_id = self.thread_man.running_group
+                    group_id = prev_group_id + 1
+                    self.thread_man.set_running_group(group_id, wait_shutdown=False)
+
+                    # Close the video buffer so the writer can't block trying to
+                    # write to it
+                    self.video_buffer.close()
+
+                    # Wait for the writer to enter a ready state first so it can't
+                    # block trying to fetch work from an empty work queue
+                    self.logger.debug("Waiting for writer thread")
+                    self.mailbox.wait_on_msg("waiting on restart", source="writer")
+
+                    # Reader and writer are paused, it is now safe to re-initialise
+                    # the video buffer
+                    self.video_buffer.__init__(self.video_buffer.buffer_size)
+
+                    # Flush work queue and poll worker for ready state
+                    queue_empty = False
+                    worker_ready = False
+                    self.logger.debug("Flushing work queue and polling worker thread")
+                    while not worker_ready or not queue_empty:
+                        if not worker_ready:
+                            worker_ready = self.mailbox.get("waiting on restart",
+                                                            source="worker")
+                            if worker_ready:
+                                self.logger.debug("Worker ready, finishing queue flush")
+                        try:
+                            work_item = self.work_queue.get(block=False)
+                            segment = work_item[0]
+                            try:
+                                self.logger.debug("Dropping segment {0}-{1}, "
+                                                  "group id {id} from the work queue"
+                                                  .format(*segment.byte_range,
+                                                          id=segment.group_id))
+                            except AttributeError:
+                                pass
+                            try:
+                                self.logger.debug("Dropping segment {0}, "
+                                                  "group id {id} from the work queue"
+                                                  .format(segment.num,
+                                                          id=segment.group_id))
+                            except AttributeError:
+                                pass
+                            queue_empty = self.work_queue.empty()
+                        except queue.Empty:
+                            queue_empty = self.work_queue.empty()
+
+                    # Queue has been flush so it is safe to restart threads
+                    self.logger.debug("Queue flush complete, restarting worker and writer threads")
+                    self.mailbox.send("restart", target="worker")
+                    self.mailbox.send("restart", target="writer")
+            except MailboxClosed:
+                self.close()
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            self.mailbox.close()
 
 
 class SegmentedStreamWorker(Thread):
@@ -106,9 +189,18 @@ class SegmentedStreamWriter(Thread):
         if self.closed:
             return
 
+        # If we are using a thread pool manager, try to find a group id
+        kwargs = {}
+        if isinstance(self.executor, ThreadPoolManager):
+            try:
+                kwargs["work_group_id"] = segment.group_id
+            except AttributeError:
+                pass
+
         if segment is not None:
             future = self.executor.submit(self.fetch, segment,
-                                          retries=self.retries)
+                                          retries=self.retries,
+                                          **kwargs)
         else:
             future = None
 

@@ -23,6 +23,8 @@ from .constants import CONFIG_FILES, PLUGINS_DIR, STREAM_SYNONYMS
 from .output import FileOutput, PlayerOutput
 from .utils import NamedPipe, HTTPServer, ignored, progress, stream_to_url
 
+import socket
+
 ACCEPTABLE_ERRNO = (errno.EPIPE, errno.EINVAL, errno.ECONNRESET)
 QUIET_OPTIONS = ("json", "stream_url", "subprocess_cmdline", "quiet")
 
@@ -64,7 +66,7 @@ def create_output():
     elif args.stdout:
         out = FileOutput(fd=stdout)
     else:
-        http = namedpipe = None
+        namedpipe = None
 
         if not args.player:
             console.exit("The default player (VLC) does not seem to be "
@@ -79,14 +81,12 @@ def create_output():
                 namedpipe = NamedPipe(pipename)
             except IOError as err:
                 console.exit("Failed to create pipe: {0}", err)
-        elif args.player_http:
-            http = create_http_server()
 
         console.logger.info("Starting player: {0}", args.player)
         out = PlayerOutput(args.player, args=args.player_args,
                            quiet=not args.verbose_player,
                            kill=not args.player_no_close,
-                           namedpipe=namedpipe, http=http)
+                           namedpipe=namedpipe)
 
     return out
 
@@ -118,11 +118,11 @@ def iter_http_requests(server, player):
         try:
             yield server.open(timeout=2.5)
         except OSError:
-            continue
+            break
 
 
-def output_stream_http(plugin, initial_streams, external=False, port=0):
-    """Continuously output the stream over HTTP."""
+def output_stream_http(plugin, initial_streams, external=False, port=0, continuous=True):
+    """Output the stream over HTTP."""
     global output
 
     if not external:
@@ -151,41 +151,94 @@ def output_stream_http(plugin, initial_streams, external=False, port=0):
         for url in server.urls:
             console.logger.info(" " + url)
 
-    for req in iter_http_requests(server, player):
-        user_agent = req.headers.get("User-Agent") or "unknown player"
-        console.logger.info("Got HTTP request from {0}".format(user_agent))
+    continuing = True
+    while continuing and (not player or player.running):
+        stream = stream_fd = prebuffer = None
+        # Listen for requests from player on HTTPServer
+        for req in iter_http_requests(server, player):
+            user_agent = req.headers.get("User-Agent") or "unknown player"
+            console.logger.info("Got HTTP request from {0}".format(user_agent))
 
-        stream_fd = prebuffer = None
-        while not stream_fd and (not player or player.running):
-            try:
-                streams = initial_streams or fetch_streams(plugin)
-                initial_streams = None
+            # Open remote stream for read
+            if not stream_fd and (not player or player.running):
+                try:
+                    streams = initial_streams or fetch_streams(plugin)
+                    initial_streams = None
 
-                for stream_name in (resolve_stream_name(streams, s) for s in args.stream):
-                    if stream_name in streams:
-                        stream = streams[stream_name]
-                        break
-                else:
-                    console.logger.info("Stream not available, will re-fetch "
-                                        "streams in 10 sec")
-                    sleep(10)
+                    for stream_name in (resolve_stream_name(streams, s) for s in args.stream):
+                        if stream_name in streams:
+                            stream = streams[stream_name]
+                            break
+                    else:
+                        console.logger.info("Stream not available, will re-fetch "
+                                            "streams in 10 sec")
+                        sleep(10)
+                        continue
+                except PluginError as err:
+                    console.logger.error(u"Unable to fetch new streams: {0}", err)
                     continue
-            except PluginError as err:
-                console.logger.error(u"Unable to fetch new streams: {0}", err)
-                continue
 
-            try:
-                console.logger.info("Opening stream: {0} ({1})", stream_name,
-                                    type(stream).shortname())
-                stream_fd, prebuffer = open_stream(stream)
-            except StreamError as err:
-                console.logger.error("{0}", err)
+                try:
+                    console.logger.info("Opening stream: {0} ({1})", stream_name,
+                                        type(stream).shortname())
+                    stream_fd, prebuffer = open_stream(stream)
 
-        if stream_fd and prebuffer:
-            console.logger.debug("Writing stream to player")
-            read_stream(stream_fd, server, prebuffer)
+                    # Enable seek support if stream supports it
+                    if stream.supports_seek:
+                        server.enable_seek(stream.complete_length, stream.duration, stream.content_type)
 
-        server.close(True)
+                except StreamError as err:
+                    console.logger.error("{0}", err)
+                    # Exit program on error if we are not running in continuous mode
+                    if not continuous:
+                        break
+
+            # If stream is open then handle the request
+            if stream_fd and not stream_fd.closed:
+                # Handle seek events
+                got_seek = False
+                if stream.supports_seek:
+                    seek_pos = server.get_seek_pos(req)
+                    if seek_pos:
+                        got_seek = True
+                        # Need to clear the prebuffer so we don't write it out again
+                        prebuffer = b""
+
+                        # Notify livestreamer threads
+                        msg_broker = stream.msg_broker
+                        msg_broker.send("seek_event", seek_pos, wait_handled=True)
+
+                # Seek msg handled by all subscribing threads. Proceed with stream
+
+                # Proceed only if we got a prebuffer or we are seeking
+                if got_seek or prebuffer:
+                    # Send header for response to player request through local
+                    # HTTPServer socket
+                    try:
+                        range_adjustment = stream.player_range_adjust
+                        server.send_header(req, range_adjustment)
+                    except socket.error as err:
+                        console.logger.error("{0}", err)
+                        server.close()
+                        continue
+
+                    # Continuously read data from remote stream and write out through
+                    # local HTTPServer socket
+                    console.logger.debug("Writing stream to player")
+                    read_stream(stream_fd, server, prebuffer)
+
+            server.close(True)
+
+        # Shutdown stream
+        if stream_fd:
+            console.logger.info("Stream ended")
+            stream_fd.close()
+
+        # If continuous then loop back to the top
+        if continuous:
+            continuing = True
+        else:
+            continuing = False
 
     player.close()
     server.close()
@@ -265,8 +318,12 @@ def output_stream(stream):
                          args.output, err)
 
     with closing(output):
-        console.logger.debug("Writing stream to output")
-        read_stream(stream_fd, output, prebuffer)
+        with closing(stream_fd):
+            console.logger.debug("Writing stream to output")
+            read_stream(stream_fd, output, prebuffer)
+
+    # Shutdown stream
+    console.logger.info("Stream ended")
 
     return True
 
@@ -278,10 +335,14 @@ def read_stream(stream, output, prebuffer, chunk_size=8192):
     is_fifo = is_player and output.namedpipe
     show_progress = isinstance(output, FileOutput) and output.fd is not stdout
 
-    stream_iterator = chain(
-        [prebuffer],
-        iter(partial(stream.read, chunk_size), b"")
-    )
+    if prebuffer:
+        stream_iterator = chain(
+            [prebuffer],
+            iter(partial(stream.read, chunk_size), b"")
+        )
+    else:
+        stream_iterator = iter(partial(stream.read, chunk_size), b"")
+
     if show_progress:
         stream_iterator = progress(stream_iterator,
                                    prefix=os.path.basename(args.output))
@@ -311,9 +372,6 @@ def read_stream(stream, output, prebuffer, chunk_size=8192):
                 break
     except IOError as err:
         console.logger.error("Error when reading from stream: {0}", err)
-
-    stream.close()
-    console.logger.info("Stream ended")
 
 
 def handle_stream(plugin, streams, stream_name):
@@ -375,6 +433,9 @@ def handle_stream(plugin, streams, stream_name):
                                           port=args.player_external_http_port)
             elif args.player_continuous_http and not file_output:
                 return output_stream_http(plugin, streams)
+            elif args.player_http:
+                return output_stream_http(plugin, streams, continuous=False)
+
             else:
                 console.logger.info("Opening stream: {0} ({1})", stream_name,
                                     stream_type)
@@ -749,6 +810,9 @@ def setup_options():
 
     if args.stream_segment_timeout:
         livestreamer.set_option("stream-segment-timeout", args.stream_segment_timeout)
+
+    if args.stream_segment_size:
+        livestreamer.set_option("stream-segment-size", args.stream_segment_size)
 
     if args.stream_timeout:
         livestreamer.set_option("stream-timeout", args.stream_timeout)

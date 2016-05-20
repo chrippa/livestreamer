@@ -50,13 +50,15 @@ class Livestreamer(object):
             "hls-segment-timeout": 10.0,
             "hls-timeout": 60.0,
             "http-stream-timeout": 60.0,
-            "ringbuffer-size": 1024 * 1024 * 16, # 16 MB
+            "ringbuffer-size": 1024 * 1024 * 16,  # 16 MB
             "rtmp-timeout": 60.0,
             "rtmp-rtmpdump": is_win32 and "rtmpdump.exe" or "rtmpdump",
             "rtmp-proxy": None,
             "stream-segment-attempts": 3,
             "stream-segment-threads": 1,
             "stream-segment-timeout": 10.0,
+            "stream-segment-size": 1024 * 1024 * 1,  # 1 MB
+
             "stream-timeout": 60.0,
             "subprocess-errorlog": False
         })

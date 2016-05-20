@@ -15,8 +15,8 @@
 #player="C:\Program Files (x86)\VideoLAN\VLC\vlc.exe"
 #player="C:\Program Files\VideoLAN\VLC\vlc.exe"
 # Using --file-caching is recommended, but is only supported in VLC 2.0+
-#player="C:\Program Files (x86)\VideoLAN\VLC\vlc.exe" --file-caching=5000
-#player="C:\Program Files\VideoLAN\VLC\vlc.exe" --file-caching=5000
+#player="C:\Program Files (x86)\VideoLAN\VLC\vlc.exe" --file-caching=5000 --network-caching=5000
+#player="C:\Program Files\VideoLAN\VLC\vlc.exe" --file-caching=5000 --network-caching=5000
 
 # MPC-HC, must be at least version 1.7 to be used
 #player="C:\Program Files (x86)\MPC-HC\mpc-hc.exe"

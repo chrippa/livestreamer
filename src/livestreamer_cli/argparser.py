@@ -718,6 +718,21 @@ transport.add_argument(
     Default is 10.0.
     """)
 transport.add_argument(
+    "--stream-segment-size",
+    type=filesize,
+    metavar="SIZE",
+    help="""
+    The size of the segment to be downloaded by each thread when using a
+    segmented HTTP stream. Add a M or K suffix to specify mega or kilo bytes
+    instead of bytes.
+
+    This option only applies to segmented HTTP streams and plugins that use
+    this stream type.
+
+    Default is "1M".
+    """
+)
+transport.add_argument(
     "--stream-timeout",
     type=num(float, min=0),
     metavar="TIMEOUT",

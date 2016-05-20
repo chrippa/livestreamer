@@ -22,5 +22,33 @@ class StreamError(LivestreamerError):
     """Stream related error."""
 
 
+class MessageBrokerError(LivestreamerError):
+    """Message broker related related errors"""
+
+
+class NotSubscribed(MessageBrokerError):
+    """Tried to unsubscribe from a message we weren't subscribed to"""
+
+
+class RegistrationFailed(MessageBrokerError):
+    """Failed to register a mailbox with the message broker"""
+
+
+class MailboxTimeout(MessageBrokerError):
+    """Mailbox timed out wait for message"""
+
+
+class MailboxClosed(MessageBrokerError):
+    """Tried to call a method on a closed mailbox"""
+
+
+class DeliveryFailed(MessageBrokerError):
+    """Was unable to deliver a message"""
+
+
+class DeliveryTimeout(DeliveryFailed):
+    """Timeout occurred while trying to deliver a message"""
+
+
 __all__ = ["LivestreamerError", "PluginError", "NoPluginError",
            "NoStreamsError", "StreamError"]

@@ -2,7 +2,7 @@ import re
 
 from livestreamer.plugin import Plugin, PluginError
 from livestreamer.plugin.api import http
-from livestreamer.stream import HTTPStream
+from livestreamer.stream import HTTPSelect
 
 _url_re = re.compile("(http(s)?://)?blip.tv/.*-(?P<videoid>\d+)")
 VIDEO_GET_URL = 'http://player.blip.tv/file/get/{0}'
@@ -67,7 +67,7 @@ class bliptv(Plugin):
         quality_dict = get_quality_dict(quality_list)
         for stream in json_decode:
             if SINGLE_VIDEO_URL.match(stream['direct_url']):
-                streams[quality_dict[stream['video_bitrate']]] = HTTPStream(self.session, stream['direct_url'])
+                streams[quality_dict[stream['video_bitrate']]] = HTTPSelect(self.session, stream['direct_url'])
         return streams
 
 __plugin__ = bliptv

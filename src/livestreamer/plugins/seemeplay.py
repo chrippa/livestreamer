@@ -3,7 +3,7 @@ import re
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HLSStream, HTTPStream
+from livestreamer.stream import HLSStream, HTTPSelect
 
 _url_re = re.compile("http(s)?://(\w+\.)?seemeplay.ru/")
 _player_re = re.compile("""
@@ -39,7 +39,7 @@ class SeeMePlay(Plugin):
         if res["type"] == "channel" and urlparse(res["url"]).path.endswith("m3u8"):
             return HLSStream.parse_variant_playlist(self.session, res["url"])
         elif res["type"] == "video":
-            stream = HTTPStream(self.session, res["url"])
+            stream = HTTPSelect(self.session, res["url"])
             return dict(video=stream)
 
 __plugin__ = SeeMePlay

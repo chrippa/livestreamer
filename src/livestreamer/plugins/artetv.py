@@ -7,7 +7,7 @@ from itertools import chain
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HLSStream, HTTPStream, RTMPStream
+from livestreamer.stream import HLSStream, HTTPSelect, RTMPStream
 
 SWF_URL = "http://www.arte.tv/player/v2/jwplayer6/mediaplayer.6.6.swf"
 
@@ -63,7 +63,7 @@ class ArteTV(Plugin):
                 except IOError as err:
                     self.logger.error("Failed to extract HLS streams: {0}", err)
             else:
-                yield stream_name, HTTPStream(self.session, stream_url)
+                yield stream_name, HTTPSelect(self.session, stream_url)
 
         elif stream_type == "rtmp":
             params = {

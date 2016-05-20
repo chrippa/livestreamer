@@ -5,7 +5,7 @@ from os.path import splitext
 from livestreamer.compat import urlparse, unquote
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HTTPStream, RTMPStream
+from livestreamer.stream import HTTPSelect, RTMPStream
 
 _url_re = re.compile("""
     http(s)?://(\w+\.)?aliez.tv
@@ -66,7 +66,7 @@ class Aliez(Plugin):
                 streams["live"] = stream
             elif parsed.scheme.startswith("http"):
                 name = splitext(parsed.path)[1][1:]
-                stream = HTTPStream(self.session, url)
+                stream = HTTPSelect(self.session, url)
                 streams[name] = stream
 
         return streams

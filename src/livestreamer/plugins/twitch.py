@@ -10,7 +10,7 @@ from livestreamer.plugin import Plugin, PluginOptions
 from livestreamer.plugin.api import http, validate
 from livestreamer.plugin.api.utils import parse_json, parse_query
 from livestreamer.stream import (
-    HTTPStream, HLSStream, FLVPlaylist, extract_flv_header_tags
+    HTTPSelect, HLSStream, FLVPlaylist, extract_flv_header_tags
 )
 
 try:
@@ -296,9 +296,9 @@ class Twitch(Plugin):
                 # No need to use the FLV concat if it's just one chunk
                 if len(chunks) == 1:
                     url = chunks[0].get("url")
-                    stream = HTTPStream(self.session, url)
+                    stream = HTTPSelect(self.session, url)
                 else:
-                    chunks = [HTTPStream(self.session, c.get("url")) for c in chunks]
+                    chunks = [HTTPSelect(self.session, c.get("url")) for c in chunks]
                     stream = FLVPlaylist(self.session, chunks,
                                          duration=chunks_duration)
             else:
@@ -326,7 +326,7 @@ class Twitch(Plugin):
             chunk_length = chunk["length"]
             chunk_start = playlist_offset
             chunk_stop = chunk_start + chunk_length
-            chunk_stream = HTTPStream(self.session, chunk_url)
+            chunk_stream = HTTPSelect(self.session, chunk_url)
 
             if start_offset >= chunk_start and start_offset <= chunk_stop:
                 try:
@@ -360,7 +360,7 @@ class Twitch(Plugin):
                                       "in the first chunk")
 
                 chunk_headers = dict(Range="bytes={0}-".format(int(keyframe_offset)))
-                chunk_stream = HTTPStream(self.session, chunk_url,
+                chunk_stream = HTTPSelect(self.session, chunk_url,
                                           headers=chunk_headers)
                 playlist_streams.append(chunk_stream)
                 for tag in headers:
