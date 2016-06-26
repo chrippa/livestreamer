@@ -33,7 +33,7 @@ dailymotion         dailymotion.com      Yes   Yes
 disney_de           - video.disney.de    Yes   Yes   Streams may be geo-restricted to Germany.
                     - disneychannel.de
 dommune             dommune.com          Yes   --
-douyutv             douyutv.com          Yes   --
+douyu               douyu.com            Yes   --
 dmcloud             api.dmcloud.net      Yes   --
 drdk                dr.dk                Yes   Yes   Streams may be geo-restricted to Denmark.
 euronews            euronews.com         Yes   No

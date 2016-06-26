@@ -8,7 +8,7 @@ from livestreamer.stream import (
     HTTPStream, HLSStream
 )
 
-API_URL = "http://www.douyutv.com/api/v1/room/{0}?aid=android&client_sys=android&time={1}&auth={2}"
+API_URL = "http://www.douyu.com/api/v1/room/{0}?aid=android&client_sys=android&time={1}&auth={2}"
 SHOW_STATUS_ONLINE = 1
 SHOW_STATUS_OFFLINE = 2
 STREAM_WEIGHTS = {
@@ -17,7 +17,7 @@ STREAM_WEIGHTS = {
 }
 
 _url_re = re.compile("""
-    http(s)?://(www\.)?douyutv.com
+    http(s)?://(www\.)?douyu.com
     /(?P<channel>[^/]+)
 """, re.VERBOSE)
 
@@ -43,7 +43,7 @@ _room_schema = validate.Schema(
 )
 
 
-class Douyutv(Plugin):
+class Douyu(Plugin):
     @classmethod
     def can_handle_url(self, url):
         return _url_re.match(url)
@@ -51,7 +51,7 @@ class Douyutv(Plugin):
     @classmethod
     def stream_weight(cls, stream):
         if stream in STREAM_WEIGHTS:
-            return STREAM_WEIGHTS[stream], "douyutv"
+            return STREAM_WEIGHTS[stream], "douyu"
 
         return Plugin.stream_weight(stream)
 
@@ -83,4 +83,4 @@ class Douyutv(Plugin):
             stream = HTTPStream(self.session, url)
             yield name, stream
 
-__plugin__ = Douyutv
+__plugin__ = Douyu
