@@ -78,9 +78,13 @@ Platform                             Installing
 Mac OS X                             .. code-block:: console
 
                                         # easy_install -U livestreamer
+`Mac OS X (Homebrew)`_               .. code-block:: console
+
+                                        $ brew install livestreamer
 Microsoft Windows                    See `Windows binaries`_.
 ==================================== ===========================================
 
+.. _Mac OS X (Homebrew): http://brew.sh/
 
 Source code
 -----------
