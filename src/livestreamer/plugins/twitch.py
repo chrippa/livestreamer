@@ -27,6 +27,8 @@ QUALITY_WEIGHTS = {
 }
 
 
+TWITCH_CLIENT_ID="ewvlchtxgqq88ru9gmfp1gmyt6h2b93"
+
 _url_re = re.compile(r"""
     http(s)?://
     (?:
@@ -171,7 +173,7 @@ class TwitchAPI(object):
         url = "https://{0}.twitch.tv{1}.{2}".format(self.subdomain, path, format)
 
         # The certificate used by Twitch cannot be verified on some OpenSSL versions.
-        res = http.get(url, params=params, verify=False)
+        res = http.get(url, params=params, verify=False, headers={'Client-ID': TWITCH_CLIENT_ID})
 
         if format == "json":
             return http.json(res, schema=schema)
