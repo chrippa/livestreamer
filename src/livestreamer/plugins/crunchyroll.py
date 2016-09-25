@@ -19,12 +19,6 @@ API_HEADERS = {
 API_VERSION = "2313.8"
 API_ACCESS_TOKEN = "QWjz212GspMHH9h"
 API_DEVICE_TYPE = "com.crunchyroll.iphone"
-STREAM_WEIGHTS = {
-    "low": 240,
-    "mid": 420,
-    "high": 720,
-    "ultra": 1080,
-}
 
 
 def parse_timestamp(ts):
@@ -58,13 +52,16 @@ _media_schema = validate.Schema(
             {
                 "streams": validate.all(
                     [{
-                        "quality": validate.text,
+                        "quality": validate.any(
+                            None,
+                            validate.text
+                        ),
                         "url": validate.url(
                             scheme="http",
                             path=validate.endswith(".m3u8")
                         )
                     }],
-                    validate.filter(lambda s: s["quality"] != "adaptive")
+                    validate.filter(lambda s: s["quality"] == "adaptive")
                 )
             }
         )
@@ -205,14 +202,6 @@ class Crunchyroll(Plugin):
     def can_handle_url(self, url):
         return _url_re.match(url)
 
-    @classmethod
-    def stream_weight(cls, key):
-        weight = STREAM_WEIGHTS.get(key)
-        if weight:
-            return weight, "crunchyroll"
-
-        return Plugin.stream_weight(key)
-
     def _get_streams(self):
         api = self._create_api()
         match = _url_re.match(self.url)
@@ -224,14 +213,10 @@ class Crunchyroll(Plugin):
         except CrunchyrollAPIError as err:
             raise PluginError(u"Media lookup error: {0}".format(err.msg))
 
-        if not info:
+        if not info or len(info["streams"]) < 1:
             return
 
-        # TODO: Use dict comprehension here after dropping Python 2.6 support.
-        return dict(
-            (stream["quality"], HLSStream(self.session, stream["url"]))
-            for stream in info["streams"]
-        )
+        return HLSStream.parse_variant_playlist(self.session, info["streams"][0]["url"])
 
     def _get_device_id(self):
         """Returns the saved device id or creates a new one and saves it."""
