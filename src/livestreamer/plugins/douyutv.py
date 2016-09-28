@@ -96,7 +96,7 @@ class Douyutv(Plugin):
 
         http.headers.update({"User-Agent": USER_AGENT})
         http.verify=False
-        http.mount('http://', HTTPAdapter(max_retries=99))
+        http.mount('https://', HTTPAdapter(max_retries=99))
 
         #Thanks to @ximellon for providing method.
         try:
