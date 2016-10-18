@@ -18,10 +18,7 @@ _channel_schema = validate.Schema(
     {
         "data" : validate.any(None, {
             "channel" : validate.any(None, {
-                "id" : validate.all(
-                    validate.text,
-                    validate.transform(int)
-                ),
+                "id" : int,
                 "vid" : int
             })
         })
