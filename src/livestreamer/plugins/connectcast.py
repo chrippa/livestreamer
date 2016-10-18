@@ -40,7 +40,6 @@ class ConnectCast(Plugin):
 
         res = http.get(urljoin(self.url, "/channel/stream/%s" % user_id))
         smil = http.xml(res, schema=_smil_schema)
-        print(smil)
 
         stream = RTMPStream(self.session, {
             "rtmp": "{0}/{1}".format(smil["base"], smil["video"]),
