@@ -4,7 +4,7 @@ from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http
 from livestreamer.stream import HLSStream
 
-HLS_URL_FORMAT = "http://hls.goodgame.ru/hls/{0}{1}.m3u8"
+HLS_URL_FORMAT = "https://hls.goodgame.ru/hls/{0}{1}.m3u8"
 QUALITIES = {
     "1080p": "",
     "720p": "_720",
@@ -12,13 +12,8 @@ QUALITIES = {
     "240p": "_240"
 }
 
-_url_re = re.compile("http://(?:www\.)?goodgame.ru/channel/(?P<user>\w+)")
-_stream_re = re.compile(
-    "iframe frameborder=\"0\" width=\"100%\" height=\"100%\" src=\"http://goodgame.ru/player(\d)?\?(\w+)\""
-)
-_ddos_re = re.compile(
-    "document.cookie=\"(__DDOS_[^;]+)"
-)
+_url_re = re.compile("https://(?:www\.)?goodgame.ru/channel/(?P<user>\w+)")
+_stream_re = re.compile(r'var src = "([^"]+)";')
 
 class GoodGame(Plugin):
     @classmethod
@@ -36,16 +31,11 @@ class GoodGame(Plugin):
         }
         res = http.get(self.url, headers=headers)
 
-        match = _ddos_re.search(res.text)
-        if (match):
-            headers["Cookie"] = match.group(1)
-            res = http.get(self.url, headers=headers)
-
         match = _stream_re.search(res.text)
         if not match:
             return
 
-        stream_id = match.group(2)
+        stream_id = match.group(1)
         streams = {}
         for name, url_suffix in QUALITIES.items():
             url = HLS_URL_FORMAT.format(stream_id, url_suffix)
