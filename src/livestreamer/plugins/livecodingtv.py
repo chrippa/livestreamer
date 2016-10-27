@@ -6,7 +6,7 @@ from livestreamer.plugin.api import http
 
 
 _rtmp_re = re.compile('rtmp://[^"]+/(?P<channel>\w+)+[^/"]+')
-_url_re = re.compile("http(s)?://(?:\w+.)?\livecoding\.tv")
+_url_re = re.compile(r"http(s)?://(?:\w+\.)?livecoding\.tv")
 
 
 class LivecodingTV(Plugin):
