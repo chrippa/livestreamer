@@ -8,7 +8,10 @@ DEFAULT_PLAYER_ARGUMENTS = "{filename}"
 
 if is_win32:
     APPDATA = os.environ["APPDATA"]
-    CONFIG_FILES = [os.path.join(APPDATA, "livestreamer", "livestreamerrc")]
+    CONFIG_FILES = [
+        os.path.join(APPDATA, "livestreamer", "livestreamerrc"),
+        os.path.expanduser("~/.livestreamerrc")
+    ]
     PLUGINS_DIR = os.path.join(APPDATA, "livestreamer", "plugins")
 else:
     XDG_CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME", "~/.config")
