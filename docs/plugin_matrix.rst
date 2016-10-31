@@ -63,6 +63,7 @@ nrk                 - tv.nrk.no          Yes   Yes   Streams may be geo-restrict
 oldlivestream       original.liv... [3]_ Yes   No    Only mobile streams are supported.
 periscope           periscope.tv         Yes   Yes   Replay/VOD is supported.
 picarto             picarto.tv           Yes   --
+piczel              piczel.tv            Yes   --
 rtve                rtve.es              Yes   No
 ruv                 ruv.is               Yes   Yes   Streams may be geo-restricted to Iceland.
 sbsdiscovery        - kanal5play.se      --    Yes
