@@ -16,7 +16,8 @@ _streams_schema = validate.Schema(
 		"data": [
 			{
 				"id": int,
-				"live": bool
+				"live": bool,
+				"slug": validate.text
 			}
 		]
 	}
@@ -32,31 +33,38 @@ class Piczel(Plugin):
 		if not match:
 			return
 
-		res = http.get(STREAMS_URL.format(match.group(1)))
+		channel_name = match.group(1)
+
+		res = http.get(STREAMS_URL.format(channel_name))
 		streams = http.json(res, schema=_streams_schema)
-		if streams["type"] != "stream":
+		if streams["type"] not in ("multi", "stream"):
 			return
 
-		stream_info = streams["data"][0]
-		if not stream_info["live"]:
-			return
+		for stream in streams["data"]:
+			if stream["slug"] != channel_name:
+				continue
 
-		streams = {}
-
-		try:
-			streams.update(HLSStream.parse_variant_playlist(self.session, HLS_URL.format(stream_info["id"])))
-		except IOError as e:
-			# fix for hosted offline streams
-			if "404 Client Error" in str(e):
+			if not stream["live"]:
 				return
-			raise
 
-		streams["rtmp"] = RTMPStream(self.session, {
-			"rtmp": RTMP_URL.format(stream_info["id"]),
-			"pageUrl": self.url,
-			"live": True
-		})
+			streams = {}
 
-		return streams
+			try:
+				streams.update(HLSStream.parse_variant_playlist(self.session, HLS_URL.format(stream["id"])))
+			except IOError as e:
+				# fix for hosted offline streams
+				if "404 Client Error" in str(e):
+					return
+				raise
+
+			streams["rtmp"] = RTMPStream(self.session, {
+				"rtmp": RTMP_URL.format(stream["id"]),
+				"pageUrl": self.url,
+				"live": True
+			})
+
+			return streams
+
+		return
 
 __plugin__ = Piczel
