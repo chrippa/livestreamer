@@ -5,8 +5,8 @@ from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import RTMPStream
 
-PLAYER_VERSION = "0.1.1.767"
-INFO_URL = "http://mvn.vaughnsoft.net/video/edge/mzn-{domain}_{channel}?{version}_{ms}-{ms}-{random}"
+PLAYER_VERSION = "0.1.1.768"
+INFO_URL = "http://mvn.vaughnsoft.net/video/edge/mnt-{domain}_{channel}?{version}_{ms}-{ms}-{random}"
 
 DOMAIN_MAP = {
     "breakers": "btv",
@@ -66,17 +66,6 @@ class VaughnLive(Plugin):
         info = http.get(INFO_URL.format(**params), schema=_schema)
 
         app = "live"
-        if info["server"] in ["198.255.17.18:1337", "198.255.17.66:1337", "50.7.188.2:1337"]:
-            if info["ingest"] == "SJC":
-                app = "live-sjc"
-            elif info["ingest"] == "NYC":
-                app = "live-nyc"
-            elif info["ingest"] == "ORD":
-                app = "live-ord"
-            elif info["ingest"] == "AMS":
-                app = "live-ams"
-            elif info["ingest"] == "DEN":
-                app = "live-den"
 
         stream = RTMPStream(self.session, {
             "rtmp": "rtmp://{0}/live".format(info["server"]),
