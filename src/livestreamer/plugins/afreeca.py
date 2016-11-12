@@ -10,26 +10,23 @@ STREAM_INFO_URLS = {
     "rtmp": "http://sessionmanager01.afreeca.tv:6060/broad_stream_assign.html",
     "hls": "http://resourcemanager.afreeca.tv:9090/broad_stream_assign.html"
 }
-HLS_KEY_URL = "http://api.m.afreeca.com/broad/a/watch"
+HLS_KEY_URL = "http://api.m.afreecatv.com/broad/a/watch"
 
 CHANNEL_RESULT_ERROR = 0
 CHANNEL_RESULT_OK = 1
 
 
-_url_re = re.compile("http(s)?://(\w+\.)?afreeca.com/(?P<username>\w+)")
+_url_re = re.compile("http(s)?://?play.afreecatv.com/(?P<username>\w+)")
 
 _channel_schema = validate.Schema(
     {
-        "CHANNEL": {
-            "RESULT": validate.transform(int),
-            "BROAD_INFOS": [{
-                "list": [{
-                    "nBroadNo": validate.text
-                }]
-            }]
+        "result": validate.transform(int),
+        "data": {
+            "broad_no": validate.transform(int),
+            "hls_authentication_key": validate.text
         }
-    },
-    validate.get("CHANNEL")
+    }
+    #validate.get("CHANNEL")
 )
 _stream_schema = validate.Schema(
     {
@@ -46,15 +43,14 @@ class AfreecaTV(Plugin):
         return _url_re.match(url)
 
     def _get_channel_info(self, username):
-        headers = {
-            "Referer": self.url
-        }
         data = {
-            "uid": username
+            "bj_id": username
         }
-        res = http.post(CHANNEL_INFO_URL, data=data, headers=headers)
+        res = http.post(HLS_KEY_URL, data=data)
+
 
         return http.json(res, schema=_channel_schema)
+
 
     def _get_hls_key(self, broadcast, username):
         headers = {
@@ -72,7 +68,7 @@ class AfreecaTV(Plugin):
         params = {
             "return_type": "gs_cdn",
             "use_cors": "true",
-            "cors_origin_url": "m.afreeca.com",
+            "cors_origin_url": "m.afreecatv.com",
             "broad_no": "{broadcast}-mobile-hd-{type}".format(**locals()),
             "broad_key": "{broadcast}-flash-hd-{type}".format(**locals())
         }
@@ -99,13 +95,11 @@ class AfreecaTV(Plugin):
         username = match.group("username")
 
         channel = self._get_channel_info(username)
-        if channel["RESULT"] != CHANNEL_RESULT_OK:
+        if channel["result"] != CHANNEL_RESULT_OK:
             return
-
-        broadcast = channel["BROAD_INFOS"][0]["list"][0]["nBroadNo"]
+        broadcast = channel["data"]["broad_no"]
         if not broadcast:
             return
-
         flash_stream = self._get_rtmp_stream(broadcast)
         if flash_stream:
             yield "live", flash_stream
