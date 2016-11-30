@@ -3,12 +3,10 @@ import json
 
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HDSStream
+from livestreamer.stream import HLSStream
 
-_url_re = re.compile("(http(s)?://(\w+\.)?antenna.gr)/webtv/watch\?cid=.+")
-_playlist_re = re.compile("playlist:\s*\"(/templates/data/jplayer\?cid=[^\"]+)")
-_manifest_re = re.compile("jwplayer:source\s+file=\"([^\"]+)\"")
-_swf_re = re.compile("<jwplayer:provider>(http[^<]+)</jwplayer:provider>")
+_url_re = re.compile("(http(s)?://(\w+\.)?antenna.gr)/minisites/[^/]+/watch/.+")
+_playlist_re = re.compile("/Services/jwplayer/getplaylistJson.ashx\?mid=[^&]+&show=[^&]+")
 
 class Antenna(Plugin):
     @classmethod
@@ -17,33 +15,24 @@ class Antenna(Plugin):
 
     def _get_streams(self):
 
-        # Discover root
+        # Discover site root
         match = _url_re.search(self.url)
         root = match.group(1)
 
         # Download main URL
         res = http.get(self.url)
 
-        # Find playlist
+        # Find URL of JSON playlist
         match = _playlist_re.search(res.text)
-        playlist_url = root + match.group(1) + "d"
+        playlist_url = root + match.group(0)
 
-        # Download playlist
+        # Download JSON playlist
         res = http.get(playlist_url)
 
-        # Find manifest
-        match = _manifest_re.search(res.text)
-        manifest_url = match.group(1)
+        # Get URL of m3u8 playlist
+        res = json.loads(res.text)
+        res = res['url']
 
-        # Find SWF
-        match = _swf_re.search(res.text)
-        swf_url = match.group(1);
-
-        streams = {}
-        streams.update(
-            HDSStream.parse_manifest(self.session, manifest_url, pvswf=swf_url)
-        )
-        
-        return streams
+        return HLSStream.parse_variant_playlist(self.session, res)
 
 __plugin__ = Antenna
