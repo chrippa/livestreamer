@@ -24,6 +24,15 @@ QUALITY_WEIGHTS = {
     "medium": 480,
     "low": 240,
     "mobile": 120,
+     #Streams with FPS options use these weights
+    "1080p60": 1081,
+    "720p60": 721,
+    "720p30": 720,
+    "540p30": 540,
+    "480p30": 480,
+    "360p30": 360,
+    "240p30": 240,
+    "144p30": 144
 }
 
 
