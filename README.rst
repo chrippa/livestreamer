@@ -1,3 +1,8 @@
+Livestreamer is no longer in active development
+============
+Please check out `streamlink <https://github.com/streamlink/streamlink>`_
+
+
 Livestreamer
 ============
 
