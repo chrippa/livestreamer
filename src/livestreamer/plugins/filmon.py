@@ -3,11 +3,11 @@ import re
 from livestreamer.compat import urlparse
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
-from livestreamer.stream import HLSStream, RTMPStream
+from livestreamer.stream import HLSStream
 
 CHINFO_URL = "http://www.filmon.com/ajax/getChannelInfo"
 SWF_URL = "http://www.filmon.com/tv/modules/FilmOnTV/files/flashapp/filmon/FilmonPlayer.swf"
-VODINFO_URL = "http://www.filmon.com/vod/info/{0}"
+VODINFO_URL = "http://www.filmon.com/api/vod/movie?id={0}"
 
 AJAX_HEADERS = {
     "Referer": "http://www.filmon.com",
@@ -18,7 +18,6 @@ QUALITY_WEIGHTS = {
     "high": 720,
     "low": 480
 }
-STREAM_TYPES = ("hls", "rtmp")
 
 _url_re = re.compile("http(s)?://(\w+\.)?filmon.com/(channel|tv|vod)/")
 _channel_id_re = re.compile("/channels/(\d+)/extra_big_logo.png")
@@ -28,21 +27,21 @@ _channel_schema = validate.Schema({
     "streams": [{
         "name": validate.text,
         "quality": validate.text,
-        "url": validate.url(scheme=validate.any("http", "rtmp"))
+        "url": validate.url(scheme="http")
     }]
 })
 _vod_schema = validate.Schema(
     {
-        "data": {
-            "streams": {
+        "response": {
+            validate.optional("streams"): {
                 validate.text: {
                     "name": validate.text,
-                    "url": validate.url(scheme=validate.any("http", "rtmp"))
+                    "url": validate.url(scheme="http")
                 }
             }
         }
     },
-    validate.get("data")
+    validate.get("response")
 )
 
 
@@ -90,50 +89,33 @@ class Filmon(Plugin):
 
     def _get_live_streams(self, channel_id):
         params = {"channel_id": channel_id}
-        for stream_type in STREAM_TYPES:
-            cookies = {"flash-player-type": stream_type}
-            res = ajax(CHINFO_URL, cookies=cookies, data=params)
-            channel = http.json(res, schema=_channel_schema)
+        res = ajax(CHINFO_URL, data=params)
+        channel = http.json(res, schema=_channel_schema)
 
-            # TODO: Replace with "yield from" when dropping Python 2.
-            for stream in self._parse_live_streams(channel):
-                yield stream
+        # TODO: Replace with "yield from" when dropping Python 2.
+        for stream in self._parse_live_streams(channel):
+            yield stream
 
     def _parse_live_streams(self, channel):
         for stream in channel["streams"]:
             name = stream["quality"]
             scheme = urlparse(stream["url"]).scheme
 
-            if scheme == "http":
-                try:
-                    streams = HLSStream.parse_variant_playlist(self.session, stream["url"])
-                    for __, stream in streams.items():
-                        yield name, stream
-
-                except IOError as err:
-                    self.logger.error("Failed to extract HLS stream '{0}': {1}", name, err)
-
-            elif scheme == "rtmp":
-                yield name, self._create_rtmp_stream(stream)
+            yield name, HLSStream(self.session, stream["url"])
 
     def _get_vod_streams(self, movie_id):
-        for stream_type in STREAM_TYPES:
-            cookies = {"flash-player-type": stream_type}
-            res = ajax(VODINFO_URL.format(movie_id), cookies=cookies)
-            vod = http.json(res, schema=_vod_schema)
+        res = ajax(VODINFO_URL.format(movie_id))
+        vod = http.json(res, schema=_vod_schema)
 
-            # TODO: Replace with "yield from" when dropping Python 2.
-            for stream in self._parse_vod_streams(vod):
-                yield stream
+        # TODO: Replace with "yield from" when dropping Python 2.
+        for stream in self._parse_vod_streams(vod):
+            yield stream
 
     def _parse_vod_streams(self, vod):
         for name, stream in vod["streams"].items():
             scheme = urlparse(stream["url"]).scheme
 
-            if scheme == "http":
-                yield name, HLSStream(self.session, stream["url"])
-            elif scheme == "rtmp":
-                yield name, self._create_rtmp_stream(stream, live=False)
+            yield name, HLSStream(self.session, stream["url"])
 
     def _get_streams(self):
         res = http.get(self.url)
