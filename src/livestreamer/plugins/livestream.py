@@ -98,8 +98,7 @@ class Livestream(Plugin):
         if play_url:
             swf_url = info.get("playerUri") or info.get("hdPlayerSwfUrl") or info.get("lsPlayerSwfUrl") or info.get("viewerPlusSwfUrl")
             if swf_url:
-                if not swf_url.startswith("http"):
-                    swf_url = "http://" + swf_url
+                swf_url = urljoin(self.url, swf_url)
 
                 # Work around broken SSL.
                 swf_url = swf_url.replace("https://", "http://")
