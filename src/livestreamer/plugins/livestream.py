@@ -22,7 +22,9 @@ _stream_config_schema = validate.Schema({
             ),
         }, None)
     },
+    validate.optional("playerUri"): validate.text,
     validate.optional("viewerPlusSwfUrl"): validate.url(scheme="http"),
+    validate.optional("lsPlayerSwfUrl"): validate.text,
     validate.optional("hdPlayerSwfUrl"): validate.text
 })
 _smil_schema = validate.Schema(validate.union({
@@ -94,12 +96,12 @@ class Livestream(Plugin):
 
         play_url = stream_info.get("play_url")
         if play_url:
-            swf_url = info.get("viewerPlusSwfUrl") or info.get("hdPlayerSwfUrl")
-            if not swf_url.startswith("http"):
-                swf_url = "http://" + swf_url
+            swf_url = info.get("playerUri") or info.get("hdPlayerSwfUrl") or info.get("lsPlayerSwfUrl") or info.get("viewerPlusSwfUrl")
+            if swf_url:
+                swf_url = urljoin(self.url, swf_url)
 
-            # Work around broken SSL.
-            swf_url = swf_url.replace("https://", "http://")
+                # Work around broken SSL.
+                swf_url = swf_url.replace("https://", "http://")
 
             qualities = stream_info["qualities"]
             for bitrate, stream in self._parse_smil(play_url, swf_url):
