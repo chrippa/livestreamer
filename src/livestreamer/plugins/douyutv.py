@@ -11,7 +11,7 @@ from livestreamer.stream import HTTPStream
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36"
 MAPI_URL = "https://m.douyu.com/html5/live?roomId={0}"
-LAPI_URL = "https://coapi.douyucdn.cn/lapi/live/thirdPart/getPlay/{0}"
+LAPI_URL = "https://coapi.douyucdn.cn/lapi/live/thirdPart/getPlay/{0}?rate={1}"
 SHOW_STATUS_ONLINE = 1
 SHOW_STATUS_OFFLINE = 2
 STREAM_WEIGHTS = {
@@ -116,37 +116,40 @@ class Douyutv(Plugin):
 
         ts = int(time.time())
 
-        sign = hashlib.md5(("lapi/live/thirdPart/getPlay/{0}?aid=pcclient&rate=0&time={1}9TUk5fjjUjg9qIMH3sdnh".format(channel, ts)).encode('ascii')).hexdigest()
+        rate = 0
+        sign = hashlib.md5(("lapi/live/thirdPart/getPlay/{0}?aid=pcclient&rate={1}&time={2}9TUk5fjjUjg9qIMH3sdnh".format(channel, rate, ts)).encode('ascii')).hexdigest()
         headers = {
             "auth": sign,
             "time": str(ts),
             "aid": "pcclient"
         }
-        res = http.get(LAPI_URL.format(channel) + "?rate=0", headers=headers)
+        res = http.get(LAPI_URL.format(channel, rate), headers=headers)
         room = http.json(res, schema=_lapi_schema)
         url = room["live_url"]
         stream = HTTPStream(self.session, url)
         yield "source", stream
 
-        sign = hashlib.md5(("lapi/live/thirdPart/getPlay/{0}?aid=pcclient&rate=2&time={1}9TUk5fjjUjg9qIMH3sdnh".format(channel, ts)).encode('ascii')).hexdigest()
+        rate = 2
+        sign = hashlib.md5(("lapi/live/thirdPart/getPlay/{0}?aid=pcclient&rate={1}&time={2}9TUk5fjjUjg9qIMH3sdnh".format(channel, rate, ts)).encode('ascii')).hexdigest()
         headers = {
             "auth": sign,
             "time": str(ts),
             "aid": "pcclient"
         }
-        res = http.get(LAPI_URL.format(channel) + "?rate=2", headers=headers)
+        res = http.get(LAPI_URL.format(channel, rate), headers=headers)
         room = http.json(res, schema=_lapi_schema)
         url = room["live_url"]
         stream = HTTPStream(self.session, url)
         yield "middle", stream
 
-        sign = hashlib.md5(("lapi/live/thirdPart/getPlay/{0}?aid=pcclient&rate=1&time={1}9TUk5fjjUjg9qIMH3sdnh".format(channel, ts)).encode('ascii')).hexdigest()
+        rate = 1
+        sign = hashlib.md5(("lapi/live/thirdPart/getPlay/{0}?aid=pcclient&rate={1}&time={2}9TUk5fjjUjg9qIMH3sdnh".format(channel, rate, ts)).encode('ascii')).hexdigest()
         headers = {
             "auth": sign,
             "time": str(ts),
             "aid": "pcclient"
         }
-        res = http.get(LAPI_URL.format(channel) + "?rate=1", headers=headers)
+        res = http.get(LAPI_URL.format(channel, rate), headers=headers)
         room = http.json(res, schema=_lapi_schema)
         url = room["live_url"]
         stream = HTTPStream(self.session, url)
