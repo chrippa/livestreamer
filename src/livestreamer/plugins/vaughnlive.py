@@ -1,10 +1,12 @@
+import random
 import re
 
 from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import RTMPStream
 
-INFO_URL = "http://mvn.vaughnsoft.net/video/edge/{domain}_{channel}"
+PLAYER_VERSION = "0.1.1.789"
+INFO_URL = "http://mvn.vaughnsoft.net/video/edge/soon__depricated_Q2_2017-{domain}_{channel}-true?{version}_{ms}-{ms}-{random}"
 
 DOMAIN_MAP = {
     "breakers": "btv",
@@ -17,15 +19,12 @@ _url_re = re.compile("""
     (?P<domain>vaughnlive|breakers|instagib|vapers).tv
     /(?P<channel>[^/&?]+)
 """, re.VERBOSE)
-_channel_not_found_re = re.compile("<title>Channel Not Found")
 
-
-def decode_token(token):
-    return token.replace("0m0", "")
+_swf_player_re = re.compile('swfobject.embedSWF\("(/\d+/swf/[0-9A-Za-z]+\.swf)"')
 
 _schema = validate.Schema(
-    validate.transform(lambda s: s.split(";:mvnkey-")),
-    validate.length(2),
+    validate.transform(lambda s: s.split(";")),
+    validate.length(3),
     validate.union({
         "server": validate.all(
             validate.get(0),
@@ -34,7 +33,12 @@ _schema = validate.Schema(
         "token": validate.all(
             validate.get(1),
             validate.text,
-            validate.transform(decode_token)
+            validate.startswith(":mvnkey-"),
+            validate.transform(lambda s: s[len(":mvnkey-"):])
+        ),
+        "ingest": validate.all(
+            validate.get(2),
+            validate.text
         )
     })
 )
@@ -47,18 +51,25 @@ class VaughnLive(Plugin):
 
     def _get_streams(self):
         res = http.get(self.url)
-        if _channel_not_found_re.search(res.text):
+        match = _swf_player_re.search(res.text)
+        if match is None:
             return
+        swfUrl = "http://vaughnlive.tv" + match.group(1)
 
         match = _url_re.match(self.url)
-        params = match.groupdict()
-        params["domain"] = DOMAIN_MAP.get(params["domain"], params["domain"])
+        params = {}
+        params["channel"] = match.group("channel").lower()
+        params["domain"] = DOMAIN_MAP.get(match.group("domain"), match.group("domain"))
+        params["version"] = PLAYER_VERSION
+        params["ms"] = random.randint(0, 999)
+        params["random"] = random.random()
         info = http.get(INFO_URL.format(**params), schema=_schema)
-        swfUrl = "http://vaughnlive.tv" + re.compile('swfobject.embedSWF\("(/\d+/swf/[0-9A-Za-z]+\.swf)"').findall(res.text)[0]
+
+        app = "live"
 
         stream = RTMPStream(self.session, {
             "rtmp": "rtmp://{0}/live".format(info["server"]),
-            "app": "live?{0}".format(info["token"]),
+            "app": "{0}?{1}".format(app, info["token"]),
             "swfVfy": swfUrl,
             "pageUrl": self.url,
             "live": True,
