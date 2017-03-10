@@ -5,8 +5,8 @@ from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import RTMPStream
 
-PLAYER_VERSION = "0.1.1.782"
-INFO_URL = "http://mvn.vaughnsoft.net/video/edge/soon_depricated_Q2_2017-{domain}_{channel}-true?{version}_{ms}-{ms}-{random}"
+PLAYER_VERSION = "0.1.1.789"
+INFO_URL = "http://mvn.vaughnsoft.net/video/edge/soon__depricated_Q2_2017-{domain}_{channel}-true?{version}_{ms}-{ms}-{random}"
 
 DOMAIN_MAP = {
     "breakers": "btv",
