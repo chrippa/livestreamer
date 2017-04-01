@@ -5,12 +5,12 @@ from livestreamer.plugin.api import http, validate
 from livestreamer.stream import HLSStream
 
 
-STREAM_INFO_URL = "https://api.periscope.tv/api/v2/getAccessPublic"
+STREAM_INFO_URL = "https://proxsee.pscp.tv/api/v2/accessVideoPublic"
 
 STATUS_GONE = 410
 STATUS_UNAVAILABLE = (STATUS_GONE,)
 
-_url_re = re.compile(r"http(s)?://(www\.)?periscope.tv/[^/]+/(?P<broadcast_id>[\w\-\=]+)")
+_url_re = re.compile(r"http(s)?://(www\.)?(?:periscope|pscp).tv/[^/]+/(?P<broadcast_id>[\w\-\=]+)")
 _stream_schema = validate.Schema(
     validate.any(
         None,
