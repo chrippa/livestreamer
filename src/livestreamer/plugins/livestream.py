@@ -95,11 +95,13 @@ class Livestream(Plugin):
         play_url = stream_info.get("play_url")
         if play_url:
             swf_url = info.get("viewerPlusSwfUrl") or info.get("hdPlayerSwfUrl")
-            if not swf_url.startswith("http"):
-                swf_url = "http://" + swf_url
 
-            # Work around broken SSL.
-            swf_url = swf_url.replace("https://", "http://")
+            if swf_url is not None:
+                if not swf_url.startswith("http"):
+                    swf_url = "http://" + swf_url
+
+                # Work around broken SSL.
+                swf_url = swf_url.replace("https://", "http://")
 
             qualities = stream_info["qualities"]
             for bitrate, stream in self._parse_smil(play_url, swf_url):
