@@ -18,7 +18,7 @@ Overview
 Livestreamer is a `command-line utility`_ that pipes video streams
 from various services into a video player, such as `VLC <http://videolan.org/>`_.
 The main purpose of Livestreamer is to allow the user to avoid buggy and CPU
-heavy flash plugins but still be able to enjoy various streamed content.
+heavy flash plugins but still be able to enjoy the various streamed content.
 There is also an `API`_ available for developers who want access
 to the video stream data.
 
@@ -36,7 +36,7 @@ Features
 --------
 
 Livestreamer is built upon a plugin system which allows support for new services
-to be easily added. Currently most of the big streaming services are supported,
+to be easily added. Currently, most of the big streaming services are supported,
 such as:
 
 - `Dailymotion <http://dailymotion.com/live>`_
@@ -53,7 +53,7 @@ on the `Plugins`_ page.
 Quickstart
 -----------
 
-The default behaviour of Livestreamer is to playback a stream in the default
+The default behavior of Livestreamer is to playback a stream in the default
 player (`VLC <http://videolan.org/>`_).
 
 .. sourcecode:: console
@@ -80,4 +80,3 @@ Contributing
 
 If you wish to report a bug or contribute code, please take a look
 at `CONTRIBUTING.rst <CONTRIBUTING.rst>`_ first.
-
