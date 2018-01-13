@@ -157,7 +157,7 @@ class YouTube(Plugin):
 
         params = {
             "video_id": video_id,
-            "el": "player_embedded"
+            "el": "detailpage"
         }
         res = http.get(API_VIDEO_INFO, params=params)
 
