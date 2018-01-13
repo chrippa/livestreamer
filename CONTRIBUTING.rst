@@ -2,8 +2,7 @@
 Contributing
 ============
 
-Contributions are welcome, and they are greatly appreciated! Every
-little bit helps, and credit will always be given.
+Contributions are welcome, and they are greatly appreciated! Every little bit helps, and credit will always be given.
 
 You can contribute in many ways:
 
@@ -39,7 +38,7 @@ Adding Plugins
 Livestreamer can always use more plugins. Look through the GitHub issues
 if you are looking for something to implement.
 
-There is no plugin documentation at the moment, but look at the existing
+There is no plugin documentation at the moment but look at the existing
 plugins to get an idea of how it works. 
 
 Write Documentation
@@ -58,7 +57,7 @@ If you are proposing a feature:
 
 * Explain in detail how it would work.
 * Keep the scope as narrow as possible, to make it easier to implement.
-* Remember that this is a volunteer-driven project, and that contributions
+* Remember that this is a volunteer-driven project and that contributions
   are welcome :)
 
 Get Started!
@@ -109,7 +108,7 @@ Before you submit a pull request, check that it meets these guidelines:
 3. When creating a pull request, make sure it's on the correct branch.
    These branches are currently used:
 
-   - master: Only critical fixes that needs to be released ASAP.
+   - master: Only critical fixes that need to be released ASAP.
    - develop: Everything else.
 
 4. The pull request should work for Python 2.6, 2.7, and 3.3, and for PyPy. Check 
