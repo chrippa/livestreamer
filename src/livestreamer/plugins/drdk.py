@@ -6,8 +6,8 @@ from livestreamer.plugin import Plugin
 from livestreamer.plugin.api import http, validate
 from livestreamer.stream import HLSStream, HDSStream
 
-LIVE_CHANNELS_API_URL = "http://www.dr.dk/tv/external/channels?mediaType=tv"
-VOD_API_URL = "http://www.dr.dk/mu/programcard/expanded/{0}"
+LIVE_CHANNELS_API_URL = "https://www.dr.dk/mu-online-stage/api/1.4/channel/all-active-dr-tv-channels"
+VOD_API_URL = "https://www.dr.dk/mu/programcard/expanded/{0}"
 
 STREAMING_TYPES = {
     "HDS": HDSStream.parse_manifest,
@@ -27,37 +27,34 @@ _url_re = re.compile(r"""
     )
 """, re.VERBOSE)
 
-_channels_schema = validate.Schema(
+_channels_schema = validate.Schema([
     {
-        "Data": [{
-            "Slug": validate.text,
-            "StreamingServers": validate.all(
-                [{
-                    "LinkType": validate.text,
-                    "Qualities": [
-                        validate.all(
-                            {
-                                "Streams": validate.all(
-                                    [
-                                        validate.all(
-                                            {"Stream": validate.text},
-                                            validate.get("Stream")
-                                        )
-                                    ],
-                                    validate.get(0)
-                                )
-                            },
-                            validate.get("Streams")
-                        )
-                    ],
-                    "Server": validate.text
-                }],
-                validate.filter(lambda s: s["LinkType"] in STREAMING_TYPES)
-            )
-        }]
+        "Slug": validate.text,
+        "StreamingServers": validate.all(
+            [{
+                "LinkType": validate.text,
+                "Qualities": [
+                    validate.all(
+                        {
+                            "Streams": validate.all(
+                                [
+                                    validate.all(
+                                        {"Stream": validate.text},
+                                        validate.get("Stream")
+                                    )
+                                ],
+                                validate.get(0)
+                            )
+                        },
+                    validate.get("Streams")
+                    )
+                ],
+                "Server": validate.text
+            }],
+            validate.filter(lambda s: s["LinkType"] in STREAMING_TYPES)
+        )
     },
-    validate.get("Data", {})
-)
+])
 
 _video_schema = validate.Schema(
     { "Data": [{
