@@ -187,7 +187,7 @@ general.add_argument(
     """
 )
 general.add_argument(
-    "-V", "--version",
+    "-v", "--version",
     action="version",
     version="%(prog)s {0}".format(LIVESTREAMER_VERSION),
     help="""
