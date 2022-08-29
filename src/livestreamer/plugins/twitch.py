@@ -30,7 +30,7 @@ QUALITY_WEIGHTS = {
 _url_re = re.compile(r"""
     http(s)?://
     (?:
-        (?P<subdomain>\w+)
+        (?P<subdomain>[\w\-]+)
         \.
     )?
     twitch.tv
@@ -133,6 +133,7 @@ class UsherService(object):
             "type": "any",
             "allow_source": "true",
             "allow_audio_only": "true",
+            "allow_spectre": "false",
         }
         params.update(extra_params)
 

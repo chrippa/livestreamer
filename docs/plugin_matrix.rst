@@ -16,12 +16,15 @@ afreeca             afreecatv.com        Yes   No
 afreecatv           afreeca.tv           Yes   No
 aftonbladet         aftonbladet.se       Yes   Yes
 alieztv             aliez.tv             Yes   Yes
+antenna             antenna.gr           --    Yes
 ard_live            live.daserste.de     Yes   --    Streams may be geo-restricted to Germany.
 ard_mediathek       ardmediathek.de      Yes   Yes   Streams may be geo-restricted to Germany.
 artetv              arte.tv              Yes   Yes
 azubutv             azubu.tv             Yes   No
+beam                beam.pro             Yes   No
 beattv              be-at.tv             Yes   Yes   Playlist not implemented yet.
 bambuser            bambuser.com         Yes   Yes
+bliptv              blip.tv              --    Yes
 chaturbate          chaturbate.com       Yes   No
 connectcast         connectcast.tv       Yes   Yes
 crunchyroll         crunchyroll.com      --    Yes
@@ -34,6 +37,7 @@ douyutv             douyutv.com          Yes   --
 dmcloud             api.dmcloud.net      Yes   --
 drdk                dr.dk                Yes   Yes   Streams may be geo-restricted to Denmark.
 euronews            euronews.com         Yes   No
+expressen           expressen.se         Yes   Yes
 filmon              filmon.com           Yes   Yes   Only SD quality streams.
 filmon_us           filmon.us            Yes   Yes
 furstream           furstre.am           Yes   No
@@ -45,8 +49,10 @@ itvplayer           itv.com/itvplayer    Yes   Yes   Streams may be geo-restrict
 letontv             leton.tv             Yes   --
 livestation         livestation.com      Yes   --
 livestream          new.livestream.com   Yes   --
-media_ccc_de        - media.ccc.de       Yes   Yes   Only mp4 and HLS ar are supported.
+livecoding          livecoding.tv        Yes   --
+media_ccc_de        - media.ccc.de       Yes   Yes   Only mp4 and HLS are supported.
                     - streaming... [4]_
+meerkat             meerkatapp.co        Yes   --
 mips                mips.tv              Yes   --    Requires rtmpdump with K-S-V patches.
 mlgtv               mlg.tv               Yes   --
 nhkworld            nhk.or.jp/nhkworld   Yes   No
@@ -55,9 +61,10 @@ npo                 npo.nl               Yes   Yes   Streams may be geo-restrict
 nrk                 - tv.nrk.no          Yes   Yes   Streams may be geo-restricted to Norway.
                     - radio.nrk.no
 oldlivestream       original.liv... [3]_ Yes   No    Only mobile streams are supported.
-periscope           periscope.tv         Yes   --
+periscope           periscope.tv         Yes   Yes   Replay/VOD is supported.
 picarto             picarto.tv           Yes   --
 rtve                rtve.es              Yes   No
+ruv                 ruv.is               Yes   Yes   Streams may be geo-restricted to Iceland.
 sbsdiscovery        - kanal5play.se      --    Yes
                     - kanal9play.se
                     - kanal11play.se
@@ -67,6 +74,7 @@ ssh101              ssh101.com           Yes   No
 streamingvi... [1]_ streamingvid... [2]_ Yes   --    RTMP streams requires rtmpdump with
                                                      K-S-V patches.
 streamlive          streamlive.to        Yes   --
+streamupcom         streamup.com         Yes   --
 svtplay             - svtplay.se         Yes   Yes   Streams may be geo-restricted to Sweden.
                     - svtflow.se
                     - oppetarkiv.se
